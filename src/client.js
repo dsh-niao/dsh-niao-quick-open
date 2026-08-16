@@ -184,6 +184,13 @@ const CSS = `
 .dsh-hdr-menu-note{font-size:11px;color:#9aa0a8;margin-bottom:10px;line-height:15px}
 `
 
+/**
+ * 声明本客户端插件依赖的注入服务名（决定 apply(ctx) 时 ctx 上可用的属性）。
+ * 缺少该声明时，cordis 会把访问 ctx.slots 视为未注入并抛出
+ * `cannot get property "slots" without inject`，导致插件加载失败。
+ */
+export const inject = ['slots']
+
 /** Browser plugin entry. */
 export function apply(ctx) {
   const installStyles = () => {
