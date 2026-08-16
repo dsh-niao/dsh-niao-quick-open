@@ -1,0 +1,51 @@
+{
+  "name": "dsh-niao-quick-open",
+  "version": "0.1.0",
+  "description": "One-click workspace actions in the DeepSeek Harness session header: open in file manager / editor, copy folder name, and pick a default editor. · DeepSeek Harness 会话标题栏工作区快捷操作：文件管理器打开、编辑器打开、复制文件夹名、设置默认编辑器。",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "workspace",
+    "editor",
+    "quick-open",
+    "finder",
+    "ui-enhancement"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  }
+}
