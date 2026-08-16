@@ -17,6 +17,14 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "prepack": "npm run build",
+    "check": "node --check lib/index.js && node --check scripts/build-client.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
   "exports": {
     ".": {
       "types": "./lib/types/index.d.ts",
