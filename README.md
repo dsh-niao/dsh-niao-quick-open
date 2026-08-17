@@ -2,17 +2,20 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-Workspace quick actions on the DeepSeek Harness **workspace hover card**.
+Workspace quick actions inside the DeepSeek Harness **workspace row menu**.
 
-Hover any workspace in the left sidebar and its hover card gains:
+Click the **⋯** button on any workspace row in the left sidebar and its menu
+(Rename / Delete workspace) gains three extra actions:
 
-- A **copy button** after the workspace name and after its absolute path — click the row or the button to copy that value (with a brief "copied" confirmation).
-- Three **icon buttons** under the path (tooltip shown on hover):
-  - 📁 **Open in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
-  - `</>` **Open in editor** — opens the folder in your configured default editor
-  - ⚙️ **Configure default editor** — opens a dropdown of editors auto-discovered on this machine; changes apply only after **Save**
+- 📁 **Open in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
+- `</>` **Open in default editor** — opens the folder in your configured default editor
+- ⚙️ **Set default editor** — expands an editor picker right inside the menu; click an editor to apply it instantly (no Cancel / Save buttons)
 
-The default "click the card to copy the path" behavior is removed.
+When **Set default editor** expands, a compact list of editors auto-discovered on
+this machine is shown (with the currently selected one checked). Clicking a row
+saves it immediately and collapses the picker. The first row, **Not set**, clears
+the choice. If you use **Open in default editor** before setting one, the picker
+opens automatically.
 
 ## Editor discovery
 
@@ -33,10 +36,10 @@ Or add the package to your profile `package.json` `dependencies` and `dsh.profil
 
 ## Usage
 
-1. Hover a workspace in the left sidebar.
-2. Click the copy buttons to copy the name or the absolute path.
-3. First time: click ⚙️, pick your default editor in the dropdown, click **Save**.
-4. Then click `</>` to open the folder in that editor, or 📁 to reveal it in the file manager.
+1. Click the **⋯** button on a workspace row to open its menu.
+2. Click 📁 to reveal the folder in the file manager.
+3. Click `</>` to open the folder in your default editor (opens the picker first if none is set).
+4. Click ⚙️ to set the default editor — pick one to save instantly.
 
 ## Development
 
