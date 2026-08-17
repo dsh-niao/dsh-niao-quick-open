@@ -2,20 +2,27 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-Workspace quick actions inside the DeepSeek Harness **workspace row menu**.
+Session-header quick actions for DeepSeek Harness.
 
-Click the **⋯** button on any workspace row in the left sidebar and its menu
-(Rename / Delete workspace) gains three extra actions:
+### Session header
 
-- 📁 **Open in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
-- `</>` **Open in default editor** — opens the folder in your configured default editor
-- ⚙️ **Set default editor** — expands an editor picker right inside the menu; click an editor to apply it instantly (no Cancel / Save buttons)
+The top-left of the session area becomes two rows:
 
-When **Set default editor** expands, a compact list of editors auto-discovered on
-this machine is shown (with the currently selected one checked). Clicking a row
-saves it immediately and collapses the picker. The first row, **Not set**, clears
-the choice. If you use **Open in default editor** before setting one, the picker
-opens automatically.
+- **Row 1** — the current workspace folder name (small highlighted label) plus four icon buttons, with tooltips shown below each icon:
+  - 📋 **Copy absolute path**
+  - 📁 **Reveal in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
+  - `</>` **Open in default editor**
+  - ⚙️ **Set default editor** — opens a floating card listing the available editors; click one to switch immediately
+- **Row 2** — the current session name, enlarged.
+
+### Settings: UI Features
+
+A new **UI Features** page is registered in the DSH Settings panel:
+
+- **Workspace quick buttons** — toggle whether the session-header row is shown (enabled by default).
+- **Default editor** — a dropdown choosing the editor used by **Open in default editor**; applied instantly (no Save button).
+
+Config is persisted to `~/.dsh/dsh-niao-quick-open.config.json`. If **Open in default editor** is clicked before a default editor is set, a hint directs you to Settings → UI Features → Workspace quick buttons.
 
 ## Editor discovery
 
@@ -36,10 +43,13 @@ Or add the package to your profile `package.json` `dependencies` and `dsh.profil
 
 ## Usage
 
-1. Click the **⋯** button on a workspace row to open its menu.
-2. Click 📁 to reveal the folder in the file manager.
-3. Click `</>` to open the folder in your default editor (opens the picker first if none is set).
-4. Click ⚙️ to set the default editor — pick one to save instantly.
+1. Open any workspace session: the session header's first row shows the workspace folder name and four icon buttons:
+   - Click 📋 to copy the workspace absolute path.
+   - Click 📁 to reveal the folder in the file manager.
+   - Click `</>` to open the folder in your default editor.
+   - Click ⚙️ to choose the default editor in a floating card — click one to switch immediately.
+2. The second row shows the current session name, enlarged.
+3. In DSH Settings → **UI Features**, toggle **Workspace quick buttons** and choose the **Default editor**.
 
 ## Development
 
