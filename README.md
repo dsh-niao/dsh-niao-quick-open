@@ -2,26 +2,26 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-One-click workspace actions in the DeepSeek Harness session header.
+Workspace quick actions on the DeepSeek Harness **workspace hover card**.
 
-When you are inside a conversation, the header row (next to the Session log download button) gains three icon buttons that operate on the **current session's workspace directory**:
+Hover any workspace in the left sidebar and its hover card gains:
 
-| Icon | Tooltip | Action |
-| --- | --- | --- |
-| ⚙️ | Configure default editor | Opens a settings menu with an editor dropdown — changes apply only after you click **Save**; clicking outside or **Cancel** discards them |
-| `</>` | Open in editor | Opens the workspace folder in your configured default editor |
-| 📂 | Open in file manager | Reveals the workspace folder in the file manager (Finder on macOS / Explorer on Windows / file manager on Linux) |
-| 📋 | Copy folder name | Copies the workspace folder name to the clipboard (shows **Copied** for 1s) |
+- A **copy button** after the workspace name and after its absolute path — click the row or the button to copy that value (with a brief "copied" confirmation).
+- Three **icon buttons** under the path (tooltip shown on hover):
+  - 📁 **Open in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
+  - `</>` **Open in editor** — opens the folder in your configured default editor
+  - ⚙️ **Configure default editor** — opens a dropdown of editors auto-discovered on this machine; changes apply only after **Save**
 
-The buttons only appear while a session is open (they live in the `conversation.session.header.utilities` slot).
+The default "click the card to copy the path" behavior is removed.
 
-## Features
+## Editor discovery
 
-- **Auto editor discovery** — detects installed editors (Visual Studio Code, Cursor, Trae, Windsurf, Zed, Sublime Text, HBuilderX, JetBrains family, Vim/Neovim CLI, …) on macOS / Windows / Linux.
-- **Platform-aware file manager label** — the tooltip adapts to the running OS.
-- **Draft-and-save settings** — selecting an editor in the menu is a draft; it takes effect only on Save.
-- **Copy feedback** — the copy button tooltip switches to "Copied" for one second.
-- **No workspace? Buttons disabled** — sessions without a workspace directory get greyed-out editor/file-manager buttons.
+Editors are scanned on the host:
+
+- **Known brands** — Visual Studio Code, Cursor, Trae, Windsurf, Zed, Sublime Text, HBuilderX, the JetBrains family, Vim/Neovim CLI, … (brand icon shown).
+- **Dynamic scan** — macOS scans `/Applications` + `/System/Applications`, Windows scans the Program Files / LocalAppData program directories, Linux probes common editor CLIs; any app matching editor keywords is offered with a letter icon.
+
+Every listed editor is guaranteed to have a working open command for the workspace folder.
 
 ## Install
 
@@ -29,21 +29,21 @@ The buttons only appear while a session is open (they live in the `conversation.
 dsh plugin --profile web add dsh-niao-quick-open
 ```
 
-Or add it to your profile `package.json` `dependencies` and `dsh.profile.bundles`, then restart `dsh web`.
+Or add the package to your profile `package.json` `dependencies` and `dsh.profile.bundles`, then restart `dsh web`.
 
 ## Usage
 
-1. Open any conversation (its session must belong to a workspace).
-2. In the header row, find the three icon buttons left of the Session log download button.
+1. Hover a workspace in the left sidebar.
+2. Click the copy buttons to copy the name or the absolute path.
 3. First time: click ⚙️, pick your default editor in the dropdown, click **Save**.
-4. Then click `</>` to open the workspace in that editor, 📂 to reveal it in the file manager, or 📋 to copy the folder name.
+4. Then click `</>` to open the folder in that editor, or 📁 to reveal it in the file manager.
 
 ## Development
 
 ```sh
 npm install
-npm run build   # build host + client bundles
-npm test        # run tests (when added)
+npm run build   # build the browser bundle into lib/client.js
+npm run check   # syntax-check host + build script
 ```
 
 ## License

@@ -1,7 +1,7 @@
 {
   "name": "dsh-niao-quick-open",
-  "version": "0.1.0",
-  "description": "One-click workspace actions in the DeepSeek Harness session header: open in file manager / editor, copy folder name, and pick a default editor. · DeepSeek Harness 会话标题栏工作区快捷操作：文件管理器打开、编辑器打开、复制文件夹名、设置默认编辑器。",
+  "version": "0.2.0",
+  "description": "Workspace quick actions on the DeepSeek Harness workspace hover card: copy folder name / path, open in file manager or editor, pick a default editor (auto-discovered). · DeepSeek Harness 工作区悬浮卡片快捷操作：复制名称/路径、文件管理器打开、编辑器打开、自动发现并设置常用编辑器。",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -49,9 +49,7 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-slots"
+        "@deepseek-ai/dsh-client-runtime"
       ],
       "platform": "web"
     }
