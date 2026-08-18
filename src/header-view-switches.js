@@ -21,6 +21,7 @@
 
 import { pluginConfig } from './state.js'
 import { registerUIApply } from './config.js'
+import { setText } from './utils.js'
 
 /** 视图 store 的 localStorage 键（与 dsh-client-ui-workspace 的 persist 一致）。 */
 const VIEW_STORE_KEY = 'dsh.workspace.view.v5'
@@ -62,12 +63,23 @@ function targetItemText(kind, mode) {
   return mode === 'manual' ? (zh ? '最新更新' : 'Last updated') : (zh ? '手动排序' : 'Manual')
 }
 
-/** 找到原生「视图选项」（分组+排序悬浮弹窗）按钮。 */
+/** 找到原生「视图选项」（分组+排序悬浮弹窗）按钮。
+ *  优先精确匹配 aria-label（视图选项 / View options）；
+ *  fallback 用 wide 类（仅 viewOptions 按钮有 qDHVXG_wide），
+ *  并排除「新增项目」按钮（aria-label 添加工作区/Add workspace）。 */
 function findViewOptionsButton() {
   const btns = document.querySelectorAll('[class*="headerActions"] button')
   const want = isZh() ? '视图选项' : 'View options'
+  const addLabels = isZh() ? ['添加工作区'] : ['Add workspace', 'Add workspace…']
   for (const b of btns) {
-    if ((b.getAttribute('aria-label') || '') === want) return b
+    const label = b.getAttribute('aria-label') || ''
+    if (label === want) return b
+  }
+  for (const b of btns) {
+    const label = b.getAttribute('aria-label') || ''
+    if (addLabels.includes(label)) continue
+    // wide 类（qDHVXG_wide）：viewOptions 按钮独有（新增项目按钮无）。
+    if (b.className && b.className.toString().indexOf('wide') !== -1) return b
   }
   return null
 }
@@ -174,17 +186,18 @@ export function ensureHeaderViewSwitches() {
     actions.insertBefore(orderBtn, vob)
     actions.insertBefore(groupBtn, vob)
   }
-  // 刷新提示文案（当前为xxx，点击后切换为xxx）。
+  // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
+  // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
   const st = viewState()
   const zh = isZh()
   const groupTip = actions.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
   const orderTip = actions.querySelector('[data-nio-hvswitch="orderBy"] .nio-hvswitch-tip')
-  if (groupTip) groupTip.textContent = zh
+  setText(groupTip, zh
     ? `当前为${modeLabel('groupBy', st.groupBy)}，点击后切换为${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
-    : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
-  if (orderTip) orderTip.textContent = zh
+    : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`)
+  setText(orderTip, zh
     ? `当前为${modeLabel('orderBy', st.orderBy)}，点击后切换为${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
-    : `Now ${modeLabel('orderBy', st.orderBy)}, click to switch to ${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
+    : `Now ${modeLabel('orderBy', st.orderBy)}, click to switch to ${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`)
 }
 
 /** 配置「工作区栏头部增强」开关变化时重建头部图标。 */
