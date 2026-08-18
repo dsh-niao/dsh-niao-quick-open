@@ -163,11 +163,11 @@ function renderFlatRow(row, sessionId, info, wsMap) {
   row.classList.toggle('nio-flat-has-status', hasStatus)
   row.classList.toggle('nio-flat-has-dot', hasDot)
 
-  // 第一行左侧：工作区 chip（复用 nio-hchip 标签样式）
+  // 第一行左侧：工作区名称（纯文本加粗，非 badge；选中态由 CSS 变亮色）
   let chip = row.querySelector('[data-nio-fchip]')
   if (!chip) {
     chip = document.createElement('span')
-    chip.className = 'nio-hchip nio-fchip'
+    chip.className = 'nio-fchip'
     chip.setAttribute('data-nio-fchip', '1')
     row.insertBefore(chip, kids.title || row.children[1] || null)
   }

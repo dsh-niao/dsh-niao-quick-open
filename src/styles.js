@@ -55,7 +55,9 @@ export const CSS = `
 /* 无前置图标（默认）：chip 跨前两列、time/actions 在最右列 */
 .nio-flat-slot{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
 .nio-flat-chip{grid-column:1 / 3;grid-row:1;align-self:center;justify-self:start;min-width:0}
-.nio-fchip{max-width:180px;font-size:11px;line-height:16px}
+.nio-fchip{box-sizing:border-box;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 选中会话时工作区名称变亮色（aria-selected 原生属性，无 hash 类名依赖） */
+.nio-flat-row[aria-selected="true"] .nio-fchip{color:var(--dsw-alias-state-business-primary)}
 .nio-flat-time{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
 .nio-flat-title{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
 .nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end}
