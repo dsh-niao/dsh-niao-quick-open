@@ -59,7 +59,7 @@ export const CSS = `
    导致 React 协调崩溃（列表卸载），必须保留为会话行直接子元素、以 grid
    定位；我们注入的元素（圆点/工作区名/预览）放在行容器
    nio-flat-line1 / nio-flat-line3 中。 */
-[class*="flatList"] [class*="sessionRow"]{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
+[class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
 [class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
