@@ -178,37 +178,56 @@ export function fixFlatRowMenuPosition() {
 }
 
 /**
- * 渲染（或更新）单个 flat 会话行为三行布局：
- * 第一行：原生状态图标（有则显示）+ 工作区 chip + 行尾最后用户消息时间；
- * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
- * info 为 null 时仅布局 + chip（预览/时间降级为原生内容）。
+ * 渲染（或更新）单个 flat 会话行的三行结构：
+ *   ┌─ 第一行（nio-flat-line1，我们的容器）：待办圆点（如有）+ 工作区名称 ─┬ 原生 time ─┐
+ *   ├─ 第二行：原生 title（左）───────────────┬ 原生 rowActions（右）──┤
+ *   └─ 第三行（nio-flat-line3，我们的容器）：最后用户消息预览（全宽） ─┘
+ *
+ * 结构约束：原生元素（slot/title/time/rowActions）由 React 渲染管理，
+ * 物理移动会导致 React 协调崩溃（插入状态点时找不到参考节点 → 列表卸载），
+ * 因此它们必须保留为会话行的直接子元素、用 CSS grid 定位到对应行列；
+ * 我们注入的元素（圆点 / 工作区名 / 预览）放入行容器，形成清晰的三行结构。
+ *
+ * info 为 null 时仅布局 + 工作区名（预览/时间降级为原生内容）。
  * wsMap 为 sessionId → 工作区标题 映射（调用方构建一次，避免每行重复构建）。
  * 幂等：所有写入先比较再赋值，注入完成后不再产生 DOM 变化。
  */
 function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
 
-  // 第一行左侧：工作区名称（纯文本加粗，非 badge；选中态由 CSS 变亮色）
-  let chip = row.querySelector('[data-nio-fchip]')
+  // 第一行容器（我们的）：待办圆点（由 session-done 注入）+ 工作区名称。
+  let line1 = row.querySelector('[data-nio-flat-line1]')
+  if (!line1) {
+    line1 = document.createElement('div')
+    line1.className = 'nio-flat-line1'
+    line1.setAttribute('data-nio-flat-line1', '1')
+    row.insertBefore(line1, row.firstChild)
+  }
+  let chip = line1.querySelector('[data-nio-fchip]')
   if (!chip) {
     chip = document.createElement('span')
     chip.className = 'nio-fchip'
     chip.setAttribute('data-nio-fchip', '1')
-    // 插入到原生标题元素之前（slot 之后、title 之前）。
-    const titleEl = row.querySelector('[class*="title"]')
-    row.insertBefore(chip, titleEl || row.children[1] || null)
+    line1.appendChild(chip)
   }
   const wsTitle = (wsMap && wsMap.get(sessionId)) || ''
   setText(chip, wsTitle || '未分组')
   setAttr(chip, 'title', wsTitle)
 
-  // 第三行：最后用户消息预览（单行省略）
-  let preview = row.querySelector('[data-nio-fprev]')
+  // 第三行容器（我们的）：最后用户消息预览（单行省略）。
+  let line3 = row.querySelector('[data-nio-flat-line3]')
+  if (!line3) {
+    line3 = document.createElement('div')
+    line3.className = 'nio-flat-line3'
+    line3.setAttribute('data-nio-flat-line3', '1')
+    row.appendChild(line3)
+  }
+  let preview = line3.querySelector('[data-nio-fprev]')
   if (!preview) {
     preview = document.createElement('span')
     preview.className = 'nio-fprev'
     preview.setAttribute('data-nio-fprev', '1')
-    row.appendChild(preview)
+    line3.appendChild(preview)
   }
   if (info) {
     setText(preview, normalizePreviewText(info.text))

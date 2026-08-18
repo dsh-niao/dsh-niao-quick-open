@@ -219,8 +219,14 @@ export function ensureSessionDoneDots() {
       const nowMarked = doneSessionIdSet().has(sid)
       setSessionDone(sid, !nowMarked)
     })
-    // 有原生 slot 则塞进 slot（复用占位，零额外空间）；否则插行首（复刻 slot 尺寸）。
-    if (slot) slot.appendChild(dot)
+    // 注入位置（按「三行结构」放置圆点）：
+    // 1) 单列表行有第一行容器（nio-flat-line1）→ 圆点放入容器首位
+    //    （与工作区名称同组，属于第一行左侧）；
+    // 2) 有原生 slot → 塞进 slot（复用占位，零额外空间）；
+    // 3) 否则插行首（复刻 slot 尺寸）。
+    const line1 = row.querySelector('[data-nio-flat-line1]')
+    if (line1) line1.insertBefore(dot, line1.firstChild)
+    else if (slot) slot.appendChild(dot)
     else row.insertBefore(dot, row.firstChild)
   }
 }
