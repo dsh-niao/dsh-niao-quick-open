@@ -172,6 +172,23 @@ export function ConfigPanel() {
         ),
       ),
     ),
+    // 「工作区栏头部增强」组（与「单列表增强样式」同级）：会话列表头部图标调整开关。
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '工作区栏头部增强'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，工作区/会话列表头部（搜索、分组方式、排序方式、新增项目所在行）替换「分组方式+排序方式」悬浮弹窗图标为两个切换图标：分组方式（按工作区 ⇄ 单列表）、排序方式（最新更新 ⇄ 手动排序），点击直接切换；关闭则使用系统原生悬浮弹窗'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.headerViewSwitches,
+            onChange: (e) => save({ headerViewSwitches: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
     // 「重启按钮」组（与「工作区快捷按钮」同级）：开关控制左下角按钮是否显示。
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
