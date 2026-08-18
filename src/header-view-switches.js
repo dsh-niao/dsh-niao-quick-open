@@ -107,14 +107,22 @@ function syntheticClick(el) {
   el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
 }
 
-/** 打开原生视图选项菜单，在绘制前隐藏并点击目标菜单项（零闪现切换）。 */
-function pickMenuOption(targetText) {
+/**
+ * 打开原生视图选项菜单，在绘制前隐藏并点击目标菜单项（零闪现切换）。
+ * @param targetKind - 'groupBy' 或 'orderBy'
+ * @param targetText - 目标菜单项文本（zh/en）
+ * 注意：菜单在打开瞬间（React commit 后）菜单项会因「初始 selected 状态
+ * 重新渲染」而短暂重建，立即查找可能命中【旧选中项】。为避免点错，先
+ * 等待一个稳定帧（requestAnimationFrame×2）再查找并点击。
+ */
+function pickMenuOption(targetKind, targetText) {
   const btn = findViewOptionsButton()
   if (!btn) return
   let done = false
   let observer = null
   const finish = (menu) => {
     if (done) return
+    // 严格校验：目标菜单项必须真的存在且属于 kind 对应的菜单（防点错）。
     const item = findMenuItemByText(targetText)
     if (!item) return
     done = true
@@ -123,20 +131,32 @@ function pickMenuOption(targetText) {
     syntheticClick(item)
     window.setTimeout(() => { if (menu && menu.isConnected) menu.classList.remove('nio-hide-menu') }, 1000)
   }
+  // 等待菜单稳定：两次 rAF 后再查找（避开菜单打开瞬间的选中态重渲染）。
+  let settled = false
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => { settled = true })
+  })
   try {
     observer = new MutationObserver(() => {
+      if (!settled) return
       const item = findMenuItemByText(targetText)
       if (item) finish(item.closest('[role="menu"]'))
     })
     observer.observe(document.body, { childList: true, subtree: true })
   } catch { observer = null }
   syntheticClick(btn) // 打开菜单（setOpen(true)）
-  const existingItem = findMenuItemByText(targetText)
-  if (existingItem) finish(existingItem.closest('[role="menu"]'))
+  // 稳定后立即尝试一次。
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      const item = findMenuItemByText(targetText)
+      if (item) finish(item.closest('[role="menu"]'))
+    })
+  })
   let tries = 0
   const timer = window.setInterval(() => {
     tries += 1
     if (done || tries > 40) { window.clearInterval(timer); if (observer) observer.disconnect(); return }
+    if (!settled) return
     const item = findMenuItemByText(targetText)
     if (item) finish(item.closest('[role="menu"]'))
   }, 50)
@@ -184,7 +204,7 @@ export function ensureHeaderViewSwitches() {
         e.stopPropagation()
         const st = viewState()
         const kind = key === 'groupBy' ? 'groupBy' : 'orderBy'
-        pickMenuOption(targetItemText(kind, st[kind]))
+        pickMenuOption(kind, targetItemText(kind, st[kind]))
       })
       return btn
     }
