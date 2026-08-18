@@ -762,6 +762,187 @@ function ensureSessionDoneDots() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 单列表（flat）会话行：三行布局增强                                    */
+/* ------------------------------------------------------------------ */
+
+/** 最后用户消息预览缓存：sessionId → { text, time, at }。 */
+const lastMsgCache = new Map()
+/** 预览缓存有效期（毫秒）：到期后重新向宿主端请求。 */
+const LAST_MSG_TTL = 60000
+/** 预览文本最大长度（字符）：超出截断，避免极端长文本撑破布局。 */
+const PREVIEW_MAX_LEN = 300
+/** 等待拉取的最后用户消息 sessionId 集合（合并并发 scan 的重复请求）。 */
+const lastMsgPending = new Set()
+/** 是否已有一轮批量请求在途。 */
+let lastMsgFetching = false
+
+/** sessionId → 工作区标题 映射（单列表行第一行 chip 用）。 */
+function workspaceTitleBySession() {
+  const out = new Map()
+  const workspaces = runtimeCtx ? runtimeCtx.get('workspaces') : undefined
+  if (!workspaces) return out
+  try {
+    const items = workspaces.list.getSnapshot().items
+    for (const w of items) {
+      if (!w || !Array.isArray(w.sessionIds) || typeof w.title !== 'string' || !w.title) continue
+      for (const sid of w.sessionIds) if (!out.has(sid)) out.set(sid, w.title)
+    }
+  } catch { /* 快照未就绪时返回空映射 */ }
+  return out
+}
+
+/** 复刻原生行尾相对时间（刚刚 / 5分钟 / 3小时 / 2天 / 1个月 / 1年）。 */
+function relativeTimeLabel(time, now) {
+  const MIN = 60000
+  const HOUR = 3600000
+  const DAY = 86400000
+  const diff = Math.max(0, now - time)
+  if (diff < MIN) return '刚刚'
+  if (diff < HOUR) return Math.floor(diff / MIN) + '分钟'
+  if (diff < DAY) return Math.floor(diff / HOUR) + '小时'
+  if (diff < 30 * DAY) return Math.floor(diff / DAY) + '天'
+  if (diff < 365 * DAY) return Math.floor(diff / (30 * DAY)) + '个月'
+  return Math.floor(diff / (365 * DAY)) + '年'
+}
+
+/** 预览文本：压缩全部空白（换行/多余空格 → 单个空格）并截断。 */
+function normalizePreviewText(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim()
+  return t.length > PREVIEW_MAX_LEN ? t.slice(0, PREVIEW_MAX_LEN) + '…' : t
+}
+
+/** 标记行内原生子元素（幂等）并返回 { slot, title, time, actions } 引用。 */
+function markFlatRowChildren(row) {
+  const kids = { slot: null, title: null, time: null, actions: null }
+  for (const child of row.children) {
+    const cls = child.className && typeof child.className === 'string' ? child.className : ''
+    if (!kids.slot && cls.indexOf('slot') !== -1) { kids.slot = child; child.classList.add('nio-flat-slot'); continue }
+    if (!kids.title && cls.indexOf('title') !== -1) { kids.title = child; child.classList.add('nio-flat-title'); continue }
+    if (!kids.time && cls.indexOf('time') !== -1) { kids.time = child; child.classList.add('nio-flat-time'); continue }
+    if (!kids.actions && cls.indexOf('rowActions') !== -1) { kids.actions = child; child.classList.add('nio-flat-actions'); continue }
+  }
+  return kids
+}
+
+/**
+ * 渲染（或更新）单个 flat 会话行为三行布局：
+ * 第一行 chip（工作区文件夹名）+ 行尾最后用户消息时间；
+ * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
+ * info 为 null 时仅布局 + chip（预览/时间降级为原生内容）。
+ * wsMap 为 sessionId → 工作区标题 映射（调用方构建一次，避免每行重复构建）。
+ * 幂等：React 重渲染重建行后重新注入。
+ */
+function renderFlatRow(row, sessionId, info, wsMap) {
+  row.setAttribute('data-nio-flat', '1')
+  row.classList.add('nio-flat-row')
+  markFlatRowChildren(row)
+
+  // 第一行左侧：工作区 chip（复用 nio-hchip 标签样式）
+  let chip = row.querySelector('[data-nio-fchip]')
+  if (!chip) {
+    chip = document.createElement('span')
+    chip.className = 'nio-hchip nio-fchip'
+    chip.setAttribute('data-nio-fchip', '1')
+    row.insertBefore(chip, row.children[1] || null)
+  }
+  const wsTitle = (wsMap && wsMap.get(sessionId)) || ''
+  chip.textContent = wsTitle || '未分组'
+  chip.title = wsTitle
+
+  // 第三行：最后用户消息预览（单行省略）
+  let preview = row.querySelector('[data-nio-fprev]')
+  if (!preview) {
+    preview = document.createElement('span')
+    preview.className = 'nio-fprev'
+    preview.setAttribute('data-nio-fprev', '1')
+    row.appendChild(preview)
+  }
+  if (info) {
+    preview.textContent = normalizePreviewText(info.text)
+    preview.title = String(info.text || '')
+    // 第一行右侧：复用原生 time 元素显示最后用户消息的相对时间
+    // （time 为 0 表示该会话无对话记录，保留原生 updatedAt 时间不覆盖）
+    if (info.time > 0) {
+      const timeEl = row.querySelector('[class*="time"]')
+      if (timeEl) timeEl.textContent = relativeTimeLabel(info.time, Date.now())
+    }
+  } else {
+    preview.textContent = ''
+    preview.title = ''
+  }
+}
+
+/** 批量拉取 pending 的最后用户消息：填充缓存后更新对应行。 */
+async function fetchLastMessages() {
+  if (lastMsgFetching) return
+  lastMsgFetching = true
+  const ids = [...lastMsgPending].slice(0, 100)
+  lastMsgPending.clear()
+  try {
+    const res = await rpc('list-last-user-messages', { sessionIds: ids })
+    const now = Date.now()
+    const items = res.ok && res.value && Array.isArray(res.value.items) ? res.value.items : []
+    for (const item of items) {
+      if (!item || typeof item.sessionId !== 'string') continue
+      lastMsgCache.set(item.sessionId, {
+        text: String(item.text || ''),
+        time: typeof item.time === 'number' ? item.time : now,
+        at: now,
+      })
+    }
+    // 未返回的会话（无对话记录）：写入空缓存，避免反复请求。
+    for (const id of ids) {
+      if (!lastMsgCache.has(id)) lastMsgCache.set(id, { text: '', time: 0, at: now })
+    }
+    // 更新受影响的行（React 可能尚未重建，直接重扫一遍 flat 列表）。
+    const list = document.querySelector('[class*="flatList"]')
+    if (list) {
+      const rows = Array.from(list.querySelectorAll('[class*="sessionRow"]'))
+      const idByRow = mapSessionRowsToIds(rows)
+      const wsMap = workspaceTitleBySession()
+      for (const row of rows) {
+        const sessionId = idByRow.get(row)
+        if (!sessionId) continue
+        const cached = lastMsgCache.get(sessionId)
+        if (cached) renderFlatRow(row, sessionId, cached, wsMap)
+      }
+    }
+  } catch { /* 请求失败：下次 scan 重试 */ }
+  lastMsgFetching = false
+  if (lastMsgPending.size > 0) fetchLastMessages()
+}
+
+/**
+ * 维护单列表（flat）模式下的会话行三行布局。
+ * 仅当视图切到「单列表」（flatList 容器存在）时生效；分组/搜索模式下不注入。
+ */
+function ensureFlatEnhance() {
+  const list = document.querySelector('[class*="flatList"]')
+  if (!list) return
+  const rows = Array.from(list.querySelectorAll('[class*="sessionRow"]'))
+  if (rows.length === 0) return
+  const idByRow = mapSessionRowsToIds(rows)
+  const stateById = new Map(sessionSnapshotRows().map((s) => [s.id, s]))
+  const wsMap = workspaceTitleBySession()
+  const now = Date.now()
+  for (const row of rows) {
+    const sessionId = idByRow.get(row)
+    if (!sessionId) continue
+    // 新会话占位行（blank）没有对话内容，不改造。
+    const s = stateById.get(sessionId)
+    if (s && s.blank) continue
+    const cached = lastMsgCache.get(sessionId)
+    if (!cached || now - cached.at > LAST_MSG_TTL) {
+      lastMsgPending.add(sessionId)
+      renderFlatRow(row, sessionId, null, wsMap)
+    } else {
+      renderFlatRow(row, sessionId, cached, wsMap)
+    }
+  }
+  if (lastMsgPending.size > 0) fetchLastMessages()
+}
+
+/* ------------------------------------------------------------------ */
 /* 设置面板：界面功能（settings.section）                                */
 /* ------------------------------------------------------------------ */
 
@@ -1105,13 +1286,14 @@ function showRebootWait(failed) {
 /* DOM 观察与扫描                                                       */
 /* ------------------------------------------------------------------ */
 
-/** 维护会话 header 工作区行、左下角重启按钮、工作区「⋯」菜单快捷按钮行与会话待办标记圆点（DOM 由 React 管理，每次变化后补回）。 */
+/** 维护会话 header 工作区行、左下角重启按钮、工作区「⋯」菜单快捷按钮行、会话待办标记圆点与单列表三行布局（DOM 由 React 管理，每次变化后补回）。 */
 function scan() {
   try { ensureHeaderRow() } catch { /* header 尚未就绪时静默跳过 */ }
   try { ensureRestartButton() } catch { /* 设置区尚未就绪时静默跳过 */ }
   try { ensureWorkspaceMenuActions() } catch { /* 菜单尚未就绪时静默跳过 */ }
   try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
+  try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
 }
 
 let scanScheduled = false
@@ -1168,6 +1350,15 @@ const CSS = `
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 .nio-sdone-tip{position:absolute;bottom:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
+/* 单列表（flat）会话行：三行布局（第一行 chip+时间 / 第二行标题 / 第三行预览） */
+.nio-flat-row{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:18px minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
+.nio-flat-slot{grid-column:1;grid-row:1 / 4;align-self:center;justify-self:center;min-width:0}
+.nio-flat-chip{grid-column:2;grid-row:1;align-self:center;justify-self:start;min-width:0}
+.nio-fchip{max-width:180px;font-size:11px;line-height:16px}
+.nio-flat-time{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
+.nio-flat-title{grid-column:2;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
+.nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end}
+.nio-fprev{grid-column:2 / 4;grid-row:3;align-self:start;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */
