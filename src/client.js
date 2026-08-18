@@ -56,14 +56,22 @@ async function refreshConfig() {
   return false
 }
 
-/** 当前配置与基线是否有差异（即存在需要重启才能生效的修改）。 */
+/**
+ * 修改后「真的需要重启才能生效」的配置键白名单。
+ * 当前所有面板配置（enabled/editor/showRestart/menuQuickActions/sessionDoneMark）
+ * 都是 set-config 即时生效的：宿主端内存配置即时更新、客户端 UI 即时重建，
+ * 因此均不需要重启。仅当未来加入宿主端启动时才读取、运行时无法热更新的
+ * 配置时，把对应键加入此白名单，configDirty 才会因它变 true。
+ */
+const RESTART_REQUIRED_KEYS = []
+
+/** 当前配置与基线是否有差异（仅比较「需要重启才能生效」的白名单键）。 */
 function configDirty() {
   if (!configBaseline) return false
-  return pluginConfig.enabled !== configBaseline.enabled ||
-    pluginConfig.editor !== configBaseline.editor ||
-    pluginConfig.showRestart !== configBaseline.showRestart ||
-    pluginConfig.menuQuickActions !== configBaseline.menuQuickActions ||
-    pluginConfig.sessionDoneMark !== configBaseline.sessionDoneMark
+  for (const key of RESTART_REQUIRED_KEYS) {
+    if (pluginConfig[key] !== configBaseline[key]) return true
+  }
+  return false
 }
 
 /** 应用一份配置补丁：更新缓存，并在任一「显示开关」变化时立即重建对应 UI。 */
@@ -803,18 +811,30 @@ function ConfigPanel() {
   }
 
   return React.createElement('div', { className: 'nio-settings' },
-    // 顶部横幅：有需要重启才能生效的配置修改时出现。
-    dirty && React.createElement('div', { className: 'nio-settings-banner' },
-      React.createElement('span', { className: 'nio-settings-banner-text' }, '有配置修改需要重启才能生效'),
-      React.createElement('button', {
-        type: 'button',
-        className: 'nio-settings-banner-btn',
-        onClick: () => showRestartConfirm({
-          title: '重启以生效',
-          desc: '即将硬性重启 DeepSeek Harness 服务，以使本次修改生效。所有正在运行的会话会暂时中断，服务关闭后以相同方式重新启动，页面会自动恢复。',
-          okText: '重启',
-        }),
-      }, '重启以生效'),
+    // 顶部固定横幅（高度恒定，不随 dirty 变化而伸缩）：
+    // 左右两侧 flex 纵向居中：左侧两行（标题「温馨提示」+ 提示内容），
+    // 右侧预留盒子（dirty 时显示「重启以生效」按钮）。
+    React.createElement('div', {
+      className: 'nio-settings-banner' + (dirty ? ' nio-settings-banner-warn' : ''),
+      'aria-live': 'polite',
+    },
+      React.createElement('div', { className: 'nio-settings-banner-main' },
+        React.createElement('div', { className: 'nio-settings-banner-title' }, '温馨提示'),
+        React.createElement('div', { className: 'nio-settings-banner-text' },
+          dirty ? '有配置修改需要重启才能生效' : '部分配置修改后，需重启服务才能生效',
+        ),
+      ),
+      React.createElement('div', { className: 'nio-settings-banner-side' },
+        dirty && React.createElement('button', {
+          type: 'button',
+          className: 'nio-settings-banner-btn',
+          onClick: () => showRestartConfirm({
+            title: '重启以生效',
+            desc: '即将硬性重启 DeepSeek Harness 服务，以使本次修改生效。所有正在运行的会话会暂时中断，服务关闭后以相同方式重新启动，页面会自动恢复。',
+            okText: '重启',
+          }),
+        }, '重启以生效'),
+      ),
     ),
     // 「工作区快捷按钮」组：开关 + 其子项「常用编辑器」（缩进）。
     React.createElement('div', { className: 'nio-settings-group' },
@@ -1150,10 +1170,19 @@ const CSS = `
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
-/* 顶部「重启以生效」横幅 */
-.nio-settings-banner{box-sizing:border-box;align-items:center;gap:12px;margin:12px 0 4px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 35%,transparent);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 10%,transparent);display:flex}
-.nio-settings-banner-text{flex:1;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px}
-.nio-settings-banner-btn{box-sizing:border-box;flex:none;height:30px;padding:0 14px;border:none;border-radius:8px;background:var(--dsw-alias-state-business-primary);color:#fff;font-size:13px;line-height:30px;font-family:inherit;cursor:pointer}
+/* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */
+.nio-settings-banner{box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:64px;margin:12px 0 4px;padding:8px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 92%,transparent);transition:border-color .2s ease,background-color .2s ease}
+/* 左侧：上下两行（标题 + 提示内容） */
+.nio-settings-banner-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.nio-settings-banner-title{color:var(--dsw-alias-label-tertiary);font-size:12px;font-weight:600;line-height:18px}
+.nio-settings-banner-text{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
+/* 右侧：预留盒子（dirty 时显示按钮），纵向居中 */
+.nio-settings-banner-side{flex:none;display:flex;align-items:center;min-width:96px;justify-content:flex-end}
+/* 有待重启修改：强调色提示 + 按钮（浅色底） */
+.nio-settings-banner-warn{border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary) 40%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 5%,transparent)}
+.nio-settings-banner-warn .nio-settings-banner-title{color:var(--dsw-alias-state-business-primary)}
+.nio-settings-banner-warn .nio-settings-banner-text{color:var(--dsw-alias-label-primary);font-weight:500}
+.nio-settings-banner-btn{box-sizing:border-box;flex:none;height:30px;padding:0 14px;border:none;border-radius:8px;background:var(--dsw-alias-state-business-primary);color:#fff;font-size:13px;line-height:30px;font-family:inherit;cursor:pointer;white-space:nowrap}
 .nio-settings-banner-btn:hover{opacity:.9}
 .nio-settings-group{display:flex;flex-direction:column}
 .nio-settings-row{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);align-items:center;gap:16px;padding:16px 0;display:flex}
