@@ -14,9 +14,10 @@
  * @module dsh-niao-quick-open/client/flat-list
  */
 
-import { runtimeCtx } from './state.js'
+import { pluginConfig, runtimeCtx } from './state.js'
 import { rpc, setText, setAttr } from './utils.js'
 import { sessionSnapshotRows, mapSessionRowsToIds } from './session-done.js'
+import { registerUIApply } from './config.js'
 
 /** 最后用户消息预览缓存：sessionId → { text, time, at }。 */
 const lastMsgCache = new Map()
@@ -88,6 +89,8 @@ export function installFlatPointerGuard() {
   if (flatPointerGuardInstalled) return
   flatPointerGuardInstalled = true
   window.addEventListener('pointerover', (e) => {
+    // 单列表增强样式关闭时：不拦截（恢复原生 hover 卡片）。
+    if (!pluginConfig.flatListStyle) return
     const target = e.target
     if (!target || typeof target.closest !== 'function') return
     // 仅拦截「进入单列表会话行」的 pointerover：行在 flatList 内才拦，
@@ -113,6 +116,8 @@ export function installFlatPointerGuard() {
  * 绘制前（MutationObserver microtask → rAF）被隐藏，用户看不到闪帧。
  */
 export function hideFlatHoverCards() {
+  // 单列表增强样式关闭时：不添加隐藏（恢复原生 hover 卡片）。
+  if (!pluginConfig.flatListStyle) return
   if (!document.querySelector('[class*="flatList"]')) return
   const contents = document.querySelectorAll('[class*="hoverContent"]')
   for (const content of contents) {
@@ -143,6 +148,8 @@ export function hideFlatHoverCards() {
  */
 let flatMenuScrollWired = false
 export function fixFlatRowMenuPosition() {
+  // 单列表增强样式关闭时：不重定位（恢复原生菜单位置）。
+  if (!pluginConfig.flatListStyle) return
   const list = document.querySelector('[class*="flatList"]')
   if (!list) return
   const openRows = list.querySelectorAll('[class*="sessionRow"][class*="menuOpen"]')
@@ -300,14 +307,33 @@ async function fetchLastMessages() {
   }
 }
 
+/** 移除单列表增强样式的全部注入（容器标记 / 行容器 / 预览 / 卡片隐藏类），恢复原生布局。幂等。 */
+export function removeFlatStyle() {
+  const list = document.querySelector('[class*="flatList"]')
+  if (list && list.getAttribute('data-nio-flat-style') === '1') list.removeAttribute('data-nio-flat-style')
+  const injected = document.querySelectorAll('[data-nio-flat-line1], [data-nio-flat-line3], [data-nio-fchip], [data-nio-fprev]')
+  for (const el of injected) el.remove()
+  // 恢复 hover 悬浮卡片（移除隐藏类，React portal 卸载不受影响）。
+  const hidden = document.querySelectorAll('.nio-hide-card')
+  for (const el of hidden) el.classList.remove('nio-hide-card')
+}
+
 /**
  * 维护单列表（flat）模式下的会话行三行布局。
- * 仅当视图切到「单列表」（flatList 容器存在）时生效；分组/搜索模式下不注入。
+ * 仅当视图切到「单列表」（flatList 容器存在）且「单列表增强样式」开关
+ * 开启时生效；分组/搜索模式下不注入。
  * 在途请求（lastMsgInflight）的会话不重复加入队列，避免请求返回后立即重发形成循环。
  */
 export function ensureFlatEnhance() {
   const list = document.querySelector('[class*="flatList"]')
+  // 开关关闭：清理注入与容器标记，恢复系统原生单列表样式。
+  if (!pluginConfig.flatListStyle) {
+    removeFlatStyle()
+    return
+  }
   if (!list) return
+  // 标记容器，CSS 规则仅在带此标记的 flatList 内生效（开关控制样式）。
+  if (list.getAttribute('data-nio-flat-style') !== '1') list.setAttribute('data-nio-flat-style', '1')
   const rows = Array.from(list.querySelectorAll('[class*="sessionRow"]'))
   if (rows.length === 0) return
   const idByRow = mapSessionRowsToIds(rows)
@@ -338,3 +364,6 @@ export function ensureFlatEnhance() {
   }
   if (lastMsgPending.size > 0) fetchLastMessages()
 }
+
+/** 配置「单列表增强样式」开关变化时重建 / 清理单列表样式。 */
+registerUIApply(() => { try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ } })

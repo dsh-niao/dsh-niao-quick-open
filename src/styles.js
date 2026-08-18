@@ -52,6 +52,9 @@ export const CSS = `
 /* 单列表 hover 悬浮卡片兜底隐藏（只加类不删节点，React 卸载不受影响） */
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
 /* 单列表（flat）会话行：三行结构。
+   全部规则以 [class*="flatList"][data-nio-flat-style] 为前缀：容器仅在
+   「单列表增强样式」开关开启时带 data-nio-flat-style 标记，关闭后所有
+   规则失效、恢复系统原生单列表布局。
    ┌─ 第一行：状态图标(原生 slot / 待办圆点) + 工作区名 ──┬ 时间 ─┐
    ├─ 第二行：会话标题 ───────────────────┬ ⋯菜单 ─┤
    └─ 第三行：最后一条用户消息预览（全宽） ─┘
@@ -63,52 +66,51 @@ export const CSS = `
    （HoverCard root span，会话行的外层包裹）加 margin-top:2px —— 加在
    sessionRow 上的 margin-top:0 无效（margin 在外层 span 上）。这里在
    容器级覆盖相邻兄弟的 margin。 */
-[class*="flatList"] > * + *{margin-top:0 !important}
-[class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:minmax(28px,auto) minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
+[class*="flatList"][data-nio-flat-style] > * + *{margin-top:0 !important}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:minmax(28px,auto) minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素）。
    靠左（justify-self:start）而非居中：列1保底 28px，居中会把图标推到
    9~19px、显得偏右；靠左后图标落在 3~13px，与空闲行待办圆点（absolute
    left:0 内 10px 居中 = 3~13px）水平对齐，视觉一致。 */
-[class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:start;min-width:0}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:start;min-width:0}
 /* 第一行左侧组（我们的容器：待办圆点 + 工作区名称）。
    待办圆点绝对定位在容器最左（position:relative + padding-left），从
    flex 流中移除——无论标题多长、grid 如何压缩，圆点都不会被挤没；
    工作区名称由 min-width:max-content 保证完整（fchip 自身 max-width:180
    截断省略）。有原生状态图标时图标占列1（16px）、本容器跨列1-2，
-   padding-left:16px 为图标留位，内容从图标右侧开始。 */
-[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;position:relative;box-sizing:border-box;display:flex;align-items:center;min-width:max-content;padding-left:22px}
+   padding-left:22px 为图标留位，内容从图标右侧开始。 */
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;position:relative;box-sizing:border-box;display:flex;align-items:center;min-width:max-content;padding-left:22px}
 /* 有原生状态图标：line1 跨列 1-3。
-   padding-left 必须 ≥ 图标右缘（列1=28px，slot 16px 居中 → 图标
-   10px 落在 9~19px，右缘 19px）+ 间距 → 22px。过小会与图标重叠
-   （此前 16px 导致图标「靠右、与工作区名称重叠」）。 */
-[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:1 / 3;padding-left:22px}
+   padding-left 必须 ≥ 图标右缘（列1=28px，slot 靠左 → 图标 3~13px，
+   右缘 13px）+ 间距 → 22px。 */
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:1 / 3;padding-left:22px}
 /* 待办圆点（绝对定位在左侧组最左，不占 flex 流、永不被压缩） */
-[class*="flatList"] [data-nio-flat-line1] .nio-sdone{position:absolute;left:0;top:50%;transform:translateY(-50%)}
+[class*="flatList"][data-nio-flat-style] [data-nio-flat-line1] .nio-sdone{position:absolute;left:0;top:50%;transform:translateY(-50%)}
 /* 工作区名称（第一行左侧组内；加粗；非选中正常色，选中亮色）。
    flex-shrink:0：在左侧组 flex 内不收缩，超长由 max-width:180 截断省略 */
-[class*="flatList"] [data-nio-flat-line1] [data-nio-fchip]{box-sizing:border-box;flex:none;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-[class*="flatList"] [class*="sessionRow"][aria-selected="true"] [data-nio-fchip]{color:var(--dsw-alias-state-business-primary)}
+[class*="flatList"][data-nio-flat-style] [data-nio-flat-line1] [data-nio-fchip]{box-sizing:border-box;flex:none;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"][aria-selected="true"] [data-nio-fchip]{color:var(--dsw-alias-state-business-primary)}
 /* 原生时间（React 管理，第一行最右） */
-[class*="flatList"] [class*="sessionRow"] > [class*="time"]{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [class*="time"]{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
 /* —— 第二行（grid row 2） —— */
 /* 原生会话标题（React 管理，全宽；覆盖原生 margin:0 6px 0 4px） */
-[class*="flatList"] [class*="sessionRow"] > [class*="title"]{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;margin:0 !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [class*="title"]{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;margin:0 !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
 /* 原生 ⋯菜单（React 管理，第二行最右；固定占位，默认隐藏，hover 会话横幅时显示） */
-[class*="flatList"] [class*="sessionRow"] > [class*="rowActions"]{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
-[class*="flatList"] [class*="sessionRow"]:hover > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
-[class*="flatList"] [class*="sessionRow"]:hover > [class*="time"]{display:inline-flex !important}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [class*="rowActions"]{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"]:hover > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"]:hover > [class*="time"]{display:inline-flex !important}
 /* 菜单打开（menuOpen 类，点击三个点后）时：即使鼠标移开行，三个点与
    时间也保持显示 —— 覆盖无条件的 opacity:0 隐藏（rowActions）与原生
    menuOpen 隐藏时间（sessionRow.menuOpen .time{display:none}）。 */
-[class*="flatList"] [class*="sessionRow"][class*="menuOpen"] > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
-[class*="flatList"] [class*="sessionRow"][class*="menuOpen"] > [class*="time"]{display:inline-flex !important}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"][class*="menuOpen"] > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"][class*="menuOpen"] > [class*="time"]{display:inline-flex !important}
 /* —— 第三行（grid row 3） —— */
 /* 第三行容器（我们的：最后用户消息预览，全宽） */
-[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line3]{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0}
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"] > [data-nio-flat-line3]{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0}
 /* 预览文本：盒子高度与行高固定 1.2em（内容变化不改变行高，避免抖动）。
    cursor 继承行的 pointer（不在预览上设 default，保证整卡小手） */
-[class*="flatList"] [data-nio-flat-line3] [data-nio-fprev]{display:block;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[class*="flatList"][data-nio-flat-style] [data-nio-flat-line3] [data-nio-fprev]{display:block;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */

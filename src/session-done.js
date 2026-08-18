@@ -176,12 +176,13 @@ export function ensureSessionDoneDots() {
       if (child.classList && child.className.toString().includes('slot')) { slot = child; break }
     }
     // 圆点归属位置（按「三行结构」）：
-    //  - 单列表（flat）行：圆点必须属于第一行容器 nio-flat-line1
-    //    （与工作区名称同组，属于第一行左侧）。容器由 ensureFlatEnhance
-    //    创建（scan 中它在本函数之后执行），若本轮尚未创建则跳过注入，
-    //    下一轮容器就绪后补入 —— 避免圆点平铺在行级造成结构混乱。
-    //  - 分组/搜索行：塞进原生 slot（复用占位），无 slot 则插行首。
-    const inFlat = !!row.closest('[class*="flatList"]')
+    //  - 单列表（flat）行且「单列表增强样式」开启：圆点必须属于第一行
+    //    容器 nio-flat-line1（与工作区名称同组，属于第一行左侧）。容器由
+    //    ensureFlatEnhance 创建（scan 中它在本函数之后执行），若本轮尚未
+    //    创建则跳过注入，下一轮容器就绪后补入 —— 避免圆点平铺在行级。
+    //  - 增强样式关闭 / 分组/搜索行：塞进原生 slot（复用占位），无 slot
+    //    则插行首（原生风格）。
+    const inFlat = !!row.closest('[class*="flatList"]') && !!pluginConfig.flatListStyle
     const line1 = row.querySelector('[data-nio-flat-line1]')
     const placeDot = (dotEl) => {
       if (inFlat) {

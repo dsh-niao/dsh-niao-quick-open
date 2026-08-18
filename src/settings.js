@@ -155,6 +155,23 @@ export function ConfigPanel() {
         ),
       ),
     ),
+    // 「单列表增强样式」组（与「工作区快捷按钮」同级）：单列表视图会话卡样式开关。
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '单列表增强样式'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，单列表视图（分组方式 → 单列表）中的会话列表使用本插件开发的三行样式（工作区名称、最后一条对话预览、状态图标对齐等）；关闭则使用系统原生单列表样式'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.flatListStyle,
+            onChange: (e) => save({ flatListStyle: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
     // 「重启按钮」组（与「工作区快捷按钮」同级）：开关控制左下角按钮是否显示。
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
