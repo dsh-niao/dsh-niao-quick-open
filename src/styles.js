@@ -41,13 +41,15 @@ export const CSS = `
 /* 内层圆点：与原生规则一致（position:relative + :before/:after 双层圆），仅颜色不同。
    默认常显（opacity:.6 浅灰）：空闲会话的待办圆点无需 hover 即显示；
    hover 会话卡片/圆点时加深到 .8；已标记为绿色常显。 */
-.nio-sdone-dot{position:relative;display:inline-block;flex:none;width:10px;height:10px;box-sizing:border-box;opacity:.6 !important;transition:opacity .12s ease,color .15s ease !important;color:var(--dsw-alias-label-tertiary) !important}
+.nio-sdone-dot{position:relative;display:inline-block;flex:none;width:10px;height:10px;box-sizing:border-box;opacity:.6 !important;transition:opacity .12s ease,color .15s ease !important}
 .nio-sdone-dot:before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;border-radius:50%;background:currentColor;opacity:.1}
 .nio-sdone-dot:after{content:"";position:absolute;top:20%;right:20%;bottom:20%;left:20%;border-radius:50%;background:currentColor}
 [class*="sessionRow"]:hover .nio-sdone .nio-sdone-dot{opacity:.8 !important}
 .nio-sdone:hover .nio-sdone-dot{opacity:.8 !important}
 .nio-sdone-marked .nio-sdone-dot{opacity:1 !important;color:var(--dsw-alias-state-success-primary) !important}
-/* 卡片选中（激活）时：圆点颜色与工作区名称一致（品牌亮色） */
+/* 卡片选中（激活）时：圆点颜色与工作区名称一致（品牌亮色）。
+   圆点 color 不再内联覆盖（改用 currentColor 继承）——父级 .nio-sdone
+   的 color 在选中态变为品牌色，内层圆点自动跟随。 */
 [class*="flatList"][data-nio-flat-style] [class*="sessionRow"][aria-selected="true"] [data-nio-fchip],
 [class*="flatList"][data-nio-flat-style] [class*="sessionRow"][aria-selected="true"] .nio-sdone{color:var(--dsw-alias-state-business-primary)}
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
