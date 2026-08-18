@@ -47,6 +47,9 @@ export const CSS = `
 [class*="sessionRow"]:hover .nio-sdone .nio-sdone-dot{opacity:.8 !important}
 .nio-sdone:hover .nio-sdone-dot{opacity:.8 !important}
 .nio-sdone-marked .nio-sdone-dot{opacity:1 !important;color:var(--dsw-alias-state-success-primary) !important}
+/* 卡片选中（激活）时：圆点颜色与工作区名称一致（品牌亮色） */
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"][aria-selected="true"] [data-nio-fchip],
+[class*="flatList"][data-nio-flat-style] [class*="sessionRow"][aria-selected="true"] .nio-sdone{color:var(--dsw-alias-state-business-primary)}
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 /* 待办圆点悬浮提示：显示在圆点下方、左对齐（bottom-left） */
 .nio-sdone-tip{position:absolute;top:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
