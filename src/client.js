@@ -29,6 +29,7 @@ import { ensureHeaderRow } from './header.js'
 import { ensureWorkspaceMenuActions } from './workspace-menu.js'
 import { clearDoneOnOpen, ensureSessionDoneDots } from './session-done.js'
 import { ensureFlatEnhance, fixFlatRowMenuPosition, hideFlatHoverCards, installFlatPointerGuard } from './flat-list.js'
+import { installDblclickRename } from './dblclick-rename.js'
 import { ConfigPanel } from './settings.js'
 import { ensureRestartButton } from './restart.js'
 import { CSS } from './styles.js'
@@ -91,6 +92,8 @@ export function apply(ctx) {
     observer.observe(document.body, { childList: true, subtree: true })
     // 安装单列表 hover 卡片拦截（window 捕获 pointerover，全局一次性）。
     installFlatPointerGuard()
+    // 安装会话双击重命名（document 捕获 dblclick，全局一次性）。
+    installDblclickRename()
     scan()
     // 兜底轮询：设置区可能晚于首帧渲染，且 MutationObserver 在个别
     // 时序下可能漏触发；注入成功前每 1s 重试，最多 20s。
