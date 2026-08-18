@@ -839,21 +839,46 @@ function setAttr(el, name, value) {
 /**
  * 阻断单列表（flat）行 hover 悬浮卡片。
  *
- * 原生会话行的 HoverCard 通过 React 的 onPointerEnter 打开卡片，而 React
- * 把 pointerenter 归为 nonDelegatedEvents：直接在 HoverCard root span 元素上
- * 绑定原生监听器（不走 root 委托），因此行内 stopPropagation pointerover
- * 无法阻止（之前方案无效的原因）。
+ * 原生会话行的 HoverCard 把 React 的 onPointerEnter 直接绑定在 root span
+ * （会话行的父元素）上。pointerenter 是"边界事件"：既不冒泡也不捕获
+ * 传播——传播路径只含目标元素本身，浏览器直接把事件派发到 root span，
+ * 因此在 flatList 容器上做捕获拦截永远收不到事件（前两版无效的原因）。
  *
- * 改为在 flat 列表容器上注册【捕获阶段】pointerenter 拦截：事件从 window
- * 捕获到 root span（目标）的路径上必然先经过容器，stopImmediatePropagation
- * 在此拦截后 root span 收不到事件，React 的 onPointerEnter 不执行 → 卡片
- * 不再打开。仅影响 flat 列表容器内的行；点击 / 拖拽 / CSS hover 不受影响。
- * 幂等：容器被 React 重建后（模式切换）dataset 丢失，重新注册。
+ * 正确做法：在 root span 本身上注册【捕获阶段】pointerenter 监听器。
+ * DOM 派发时目标元素上的捕获监听器（capture=true）总是先于目标阶段
+ * 监听器（capture=false，React 绑定在此）执行，stopImmediatePropagation
+ * 在此拦截后 React 的 onPointerEnter 不执行 → 卡片不再打开。
+ * 仅影响单列表行；点击 / 拖拽 / CSS hover 不受影响。幂等。
  */
-function blockFlatListHoverCards(list) {
-  if (list.dataset.nioFlatPvh === '1') return
-  list.dataset.nioFlatPvh = '1'
-  list.addEventListener('pointerenter', (e) => e.stopImmediatePropagation(), true)
+function blockFlatRowHoverCard(row) {
+  if (row.dataset.nioFlatPvh === '1') return
+  row.dataset.nioFlatPvh = '1'
+  // HoverCard root span = 会话行的直接父元素（包裹行 + 门户卡片）。
+  const root = row.parentElement
+  if (root && root !== row) {
+    root.addEventListener('pointerenter', (e) => e.stopImmediatePropagation(), true)
+  }
+}
+
+/**
+ * 兜底清理：flat 模式下，若某个 HoverCard 卡片仍被打开（portal 到 body），
+ * 立即移除。卡片特征：包含会话 hover 内容（hoverContent 类）、role=button
+ * （copyable 会话卡）、直接挂载在 body 下。幂等。
+ */
+function sweepFlatHoverCards() {
+  const flat = document.querySelector('[class*="flatList"]')
+  if (!flat) return
+  const contents = document.querySelectorAll('[class*="hoverContent"]')
+  for (const content of contents) {
+    let el = content
+    while (el && el !== document.body) {
+      if (el.parentElement === document.body && el.getAttribute('role') === 'button') {
+        el.remove()
+        break
+      }
+      el = el.parentElement
+    }
+  }
 }
 
 /**
@@ -868,6 +893,7 @@ function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
   row.classList.add('nio-flat-row')
   const kids = markFlatRowChildren(row)
+  blockFlatRowHoverCard(row)
 
   // 第一行前置图标判定：
   //  - has-status：原生状态图标（运行/等待/完成提醒的状态点，slot 内有子元素）；
@@ -971,8 +997,6 @@ async function fetchLastMessages() {
 function ensureFlatEnhance() {
   const list = document.querySelector('[class*="flatList"]')
   if (!list) return
-  // 容器级 hover 卡片拦截（捕获阶段，见 blockFlatListHoverCards 注释）。
-  blockFlatListHoverCards(list)
   const rows = Array.from(list.querySelectorAll('[class*="sessionRow"]'))
   if (rows.length === 0) return
   const idByRow = mapSessionRowsToIds(rows)
@@ -1351,6 +1375,7 @@ function scan() {
   try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
+  try { sweepFlatHoverCards() } catch { /* 卡片清理失败时忽略 */ }
 }
 
 let scanScheduled = false
