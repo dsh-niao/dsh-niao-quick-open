@@ -142,6 +142,55 @@ export function hideFlatHoverCards() {
 }
 
 /**
+ * 修正单列表行「⋯」菜单的弹出位置。
+ *
+ * 位置不准确的原因：React Menu（portal 模式）的定位基于「⋯ 按钮」的
+ * getBoundingClientRect（side=bottom, align=start → 按钮正下方左对齐）。
+ * 三行布局把按钮固定在第二行（会话名称行）最右，按钮位于 82px 行的中部，
+ * 菜单因此出现在行中部下方、遮挡第三行预览，视觉上悬空不贴边。
+ *
+ * 修复：菜单打开时，把 portal 菜单（body 下的 [role="menu"]）固定定位到
+ * 会话行右侧垂直居中（贴近行右缘、不遮挡内容，仿 side="right"）。只改
+ * style.left/top（不动 DOM 结构，React 卸载不受影响）。React 在 scroll/
+ * resize 时用按钮 rect 重算位置，这里由 scan + 滚动监听持续覆盖保证稳定。
+ */
+let flatMenuScrollWired = false
+export function fixFlatRowMenuPosition() {
+  const list = document.querySelector('[class*="flatList"]')
+  if (!list) return
+  const openRows = list.querySelectorAll('[class*="sessionRow"][class*="menuOpen"]')
+  if (openRows.length === 0) return
+  // 可见的 portal 菜单（会话菜单 portal:true → body 直接子元素）。
+  const menus = Array.from(document.querySelectorAll('body > [role="menu"]'))
+    .filter((m) => m.offsetWidth > 0 || m.offsetHeight > 0)
+  if (menus.length === 0) return
+  // 首次调用时挂上滚动监听：滚动时 React 会重算位置，这里同步覆盖回行右侧。
+  if (!flatMenuScrollWired) {
+    flatMenuScrollWired = true
+    window.addEventListener('scroll', () => {
+      try { fixFlatRowMenuPosition() } catch { /* 忽略 */ }
+    }, true)
+  }
+  const MARGIN = 8
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  for (const row of openRows) {
+    const rect = row.getBoundingClientRect()
+    for (const menu of menus) {
+      const lw = menu.offsetWidth || 160
+      const lh = menu.offsetHeight || 120
+      // 首选：行右侧垂直居中；右侧放不下 → 行左侧；仍放不下 → 视口内 clamp。
+      let left = rect.right + MARGIN
+      if (left + lw > vw - MARGIN) left = Math.max(MARGIN, rect.left - lw - MARGIN)
+      let top = rect.top + (rect.height - lh) / 2
+      top = Math.min(Math.max(top, MARGIN), vh - lh - MARGIN)
+      if (menu.style.left !== left + 'px') menu.style.left = left + 'px'
+      if (menu.style.top !== top + 'px') menu.style.top = top + 'px'
+    }
+  }
+}
+
+/**
  * 渲染（或更新）单个 flat 会话行为三行布局：
  * 第一行：原生状态图标（有则显示）+ 工作区 chip + 行尾最后用户消息时间；
  * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
