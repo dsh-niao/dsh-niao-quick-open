@@ -150,8 +150,10 @@ export function ensureHeaderViewSwitches() {
   const actions = findHeaderActions()
   const vob = findViewOptionsButton()
   if (!pluginConfig.headerViewSwitches) {
-    // 恢复原生悬浮弹窗按钮，移除注入图标。
+    // 恢复原生悬浮弹窗按钮，移除注入图标与容器放宽。
     if (vob) vob.classList.remove('nio-hide-viewoptions')
+    const actions = findHeaderActions()
+    if (actions) actions.classList.remove('nio-hv-actions')
     const injected = document.querySelectorAll('[data-nio-hvswitch]')
     for (const el of injected) el.remove()
     return
@@ -159,6 +161,10 @@ export function ensureHeaderViewSwitches() {
   if (!actions || !vob) return
   // 隐藏原生「分组方式+排序方式」悬浮弹窗按钮。
   vob.classList.add('nio-hide-viewoptions')
+  // 放宽容器宽度：原生 headerActions max-width:60px + overflow:hidden
+  // 只能容纳 2 个按钮（视图选项+新增项目）；注入 2 个新按钮后总宽超出
+  // 会被 overflow 裁剪（原图标消失、新图标看不见的根因）。
+  actions.classList.add('nio-hv-actions')
   // 注入两个切换图标（幂等：已存在则仅刷新提示文案）。
   if (!actions.querySelector('[data-nio-hvswitch]')) {
     const zh = isZh()
