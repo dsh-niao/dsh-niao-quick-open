@@ -190,7 +190,13 @@ export function ensureHeaderViewSwitches() {
   // 注入两个切换图标（幂等：已存在则仅刷新提示文案）。
   if (!actions.querySelector('[data-nio-hvswitch]')) {
     const zh = isZh()
+    const st = viewState()
+    // 初始提示文案（当前为xxx，点击后切换为xxx）。
+    const tipTextFor = (kind, mode) => zh
+      ? `当前为${modeLabel(kind, mode)}，点击后切换为${modeLabel(kind, mode === (kind === 'groupBy' ? 'flat' : 'manual') ? (kind === 'groupBy' ? 'workspace' : 'updated') : (kind === 'groupBy' ? 'flat' : 'manual'))}`
+      : `Now ${modeLabel(kind, mode)}, click to switch to ${modeLabel(kind, mode === (kind === 'groupBy' ? 'flat' : 'manual') ? (kind === 'groupBy' ? 'workspace' : 'updated') : (kind === 'groupBy' ? 'flat' : 'manual'))}`
     const mkBtn = (key, iconSvg, aria) => {
+      const kind = key === 'groupBy' ? 'groupBy' : 'orderBy'
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'nio-hvswitch'
@@ -198,13 +204,16 @@ export function ensureHeaderViewSwitches() {
       btn.setAttribute('aria-label', aria)
       const tip = document.createElement('span')
       tip.className = 'nio-hvswitch-tip'
+      // 立即写入初始提示文本（不依赖后续 scan 的 setText，杜绝空提示）。
+      tip.textContent = tipTextFor(kind, st[kind])
+      // title 属性兜底：浏览器原生提示一定显示（即使 span 样式被干扰）。
+      btn.title = tip.textContent
       btn.appendChild(iconSvg.cloneNode(true))
       btn.appendChild(tip)
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
-        const st = viewState()
-        const kind = key === 'groupBy' ? 'groupBy' : 'orderBy'
-        pickMenuOption(kind, targetItemText(kind, st[kind]))
+        const cur = viewState()
+        pickMenuOption(kind, targetItemText(kind, cur[kind]))
       })
       return btn
     }
@@ -224,16 +233,23 @@ export function ensureHeaderViewSwitches() {
   }
   // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
   // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
+  // 同时同步按钮 title（浏览器原生提示兜底）。
   const st = viewState()
   const zh = isZh()
   const groupTip = actions.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
   const orderTip = actions.querySelector('[data-nio-hvswitch="orderBy"] .nio-hvswitch-tip')
-  setText(groupTip, zh
+  const groupBtn = actions.querySelector('[data-nio-hvswitch="groupBy"]')
+  const orderBtn = actions.querySelector('[data-nio-hvswitch="orderBy"]')
+  const groupText = zh
     ? `当前为${modeLabel('groupBy', st.groupBy)}，点击后切换为${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
-    : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`)
-  setText(orderTip, zh
+    : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
+  const orderText = zh
     ? `当前为${modeLabel('orderBy', st.orderBy)}，点击后切换为${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
-    : `Now ${modeLabel('orderBy', st.orderBy)}, click to switch to ${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`)
+    : `Now ${modeLabel('orderBy', st.orderBy)}, click to switch to ${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
+  setText(groupTip, groupText)
+  setText(orderTip, orderText)
+  if (groupBtn && groupBtn.title !== groupText) groupBtn.title = groupText
+  if (orderBtn && orderBtn.title !== orderText) orderBtn.title = orderText
 }
 
 /** 配置「工作区栏头部增强」开关变化时重建头部图标。 */
