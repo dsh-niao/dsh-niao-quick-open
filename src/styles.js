@@ -69,13 +69,17 @@ export const CSS = `
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
 [class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
 /* 第一行左侧组（我们的容器：待办圆点 + 工作区名称）；
-   默认占第一列（空闲），有原生状态图标时图标占第一列、本容器移到第二列 */
-[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;display:flex;align-items:center;gap:6px;min-width:0}
+   默认占第一列（空闲），有原生状态图标时图标占第一列、本容器移到第二列。
+   min-width:max-content：保证本组宽度永不收缩——当会话标题很长时，
+   grid 的 auto 第一列可能被压缩到 0，工作区名称会被挤没；max-content
+   让第一列始终容纳完整工作区名称（fchip 自身有 max-width:180 截断）。 */
+[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;display:flex;align-items:center;gap:6px;min-width:max-content}
 [class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:2}
 /* 待办圆点（第一行左侧组内） */
 [class*="flatList"] [data-nio-flat-line1] .nio-sdone{flex:none}
-/* 工作区名称（第一行左侧组内；加粗；非选中正常色，选中亮色） */
-[class*="flatList"] [data-nio-flat-line1] [data-nio-fchip]{box-sizing:border-box;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 工作区名称（第一行左侧组内；加粗；非选中正常色，选中亮色）。
+   flex-shrink:0：在左侧组 flex 内不收缩，超长由 max-width:180 截断省略 */
+[class*="flatList"] [data-nio-flat-line1] [data-nio-fchip]{box-sizing:border-box;flex:none;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [class*="flatList"] [class*="sessionRow"][aria-selected="true"] [data-nio-fchip]{color:var(--dsw-alias-state-business-primary)}
 /* 原生时间（React 管理，第一行最右） */
 [class*="flatList"] [class*="sessionRow"] > [class*="time"]{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
