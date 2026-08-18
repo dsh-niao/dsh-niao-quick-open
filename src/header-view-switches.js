@@ -151,7 +151,7 @@ export function ensureHeaderViewSwitches() {
   const vob = findViewOptionsButton()
   if (!pluginConfig.headerViewSwitches) {
     // 恢复原生悬浮弹窗按钮，移除注入图标与容器放宽。
-    if (vob) vob.classList.remove('nio-hide-viewoptions')
+    if (vob) vob.style.display = ''
     const actions = findHeaderActions()
     if (actions) actions.classList.remove('nio-hv-actions')
     const injected = document.querySelectorAll('[data-nio-hvswitch]')
@@ -160,7 +160,9 @@ export function ensureHeaderViewSwitches() {
   }
   if (!actions || !vob) return
   // 隐藏原生「分组方式+排序方式」悬浮弹窗按钮。
-  vob.classList.add('nio-hide-viewoptions')
+  // 用 inline style（React 不管理此按钮的 style prop → 重渲染不会重置），
+  // 比 classList 稳定：class 会被 React 重渲染时重置（原来图标闪消失的原因）。
+  vob.style.display = 'none'
   // 放宽容器宽度：原生 headerActions max-width:60px + overflow:hidden
   // 只能容纳 2 个按钮（视图选项+新增项目）；注入 2 个新按钮后总宽超出
   // 会被 overflow 裁剪（原图标消失、新图标看不见的根因）。
@@ -188,9 +190,17 @@ export function ensureHeaderViewSwitches() {
     }
     const groupBtn = mkBtn('groupBy', groupBySvg, zh ? '切换分组方式' : 'Toggle grouping')
     const orderBtn = mkBtn('orderBy', orderBySvg, zh ? '切换排序方式' : 'Toggle sorting')
-    // 插到原生悬浮弹窗按钮之前（保持头部图标顺序）。
-    actions.insertBefore(orderBtn, vob)
-    actions.insertBefore(groupBtn, vob)
+    // 插入位置：vob（视图选项按钮）在 Menu root span 内，span 才是
+    // headerActions 的直接子元素。insertBefore 的 reference node 必须是
+    // 父元素的直接子元素，直接传 vob 会抛 NotFoundError（按钮从未插入）。
+    const refNode = vob.parentElement || vob
+    if (actions.contains(refNode)) {
+      actions.insertBefore(orderBtn, refNode)
+      actions.insertBefore(groupBtn, refNode)
+    } else {
+      actions.appendChild(orderBtn)
+      actions.appendChild(groupBtn)
+    }
   }
   // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
   // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
