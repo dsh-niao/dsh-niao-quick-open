@@ -166,14 +166,13 @@ export function fixFlatRowMenuPosition() {
     for (const menu of menus) {
       const lw = menu.offsetWidth || 160
       const lh = menu.offsetHeight || 120
-      // right-bottom：菜单右缘对齐行右缘，顶缘在行底缘下方（向下展开，
-      // 不遮挡当前行内容）。视口放不下时翻转到行上方 / 行左侧，最后 clamp。
-      let left = rect.right - lw
-      if (left < MARGIN) left = rect.right + MARGIN // 左侧放不下 → 翻转到行右侧
-      left = Math.min(Math.max(left, MARGIN), vw - lw - MARGIN)
+      // 期望位置：菜单在行的【右下角外侧】——左缘贴行右缘外侧、顶缘在
+      // 行底缘下方（side=right + bottom 组合，右下弹出）。
+      // 视口放不下时翻转：右侧放不下 → 翻到行左侧；下方放不下 → 翻到行上方。
+      let left = rect.right + MARGIN
+      if (left + lw > vw - MARGIN) left = Math.max(MARGIN, rect.left - lw - MARGIN)
       let top = rect.bottom + MARGIN
-      if (top + lh > vh - MARGIN) top = rect.top - lh - MARGIN // 下方放不下 → 行上方
-      top = Math.min(Math.max(top, MARGIN), vh - lh - MARGIN)
+      if (top + lh > vh - MARGIN) top = Math.max(MARGIN, rect.top - lh - MARGIN)
       if (menu.style.left !== left + 'px') menu.style.left = left + 'px'
       if (menu.style.top !== top + 'px') menu.style.top = top + 'px'
     }

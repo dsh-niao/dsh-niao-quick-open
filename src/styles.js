@@ -59,6 +59,11 @@ export const CSS = `
    导致 React 协调崩溃（列表卸载），必须保留为会话行直接子元素、以 grid
    定位；我们注入的元素（圆点/工作区名/预览）放在行容器
    nio-flat-line1 / nio-flat-line3 中。 */
+/* 卡片间 margin-top 的真正来源：原生 .qDHVXG_flatList>*+* 给相邻兄弟
+   （HoverCard root span，会话行的外层包裹）加 margin-top:2px —— 加在
+   sessionRow 上的 margin-top:0 无效（margin 在外层 span 上）。这里在
+   容器级覆盖相邻兄弟的 margin。 */
+[class*="flatList"] > * + *{margin-top:0 !important}
 [class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
