@@ -12,6 +12,7 @@
 import { DONE_IDS_KEY } from './constants.js'
 import { pluginConfig, runtimeCtx } from './state.js'
 import { registerUIApply } from './config.js'
+import { setText, setAttr } from './utils.js'
 
 /** 读取已标记「已完成」的会话 id 数组（浏览器缓存）。 */
 function readDoneIds() {
@@ -208,10 +209,14 @@ export function ensureSessionDoneDots() {
       }
       // 位置校正：flat 行圆点必须位于 line1 内（修复历史平铺残留）。
       placeDot(existing)
+      // 幂等刷新（值相同不赋值）：textContent 即使设置相同值也会重写
+      // 子节点、触发 childList mutation，进而再次触发 MutationObserver →
+      // scan → 本函数，形成自激循环（运行中会话时观察到的频繁闪烁）。
+      // setText/setAttr 值相同直接跳过，无 DOM 变化则循环断开。
       existing.classList.toggle('nio-sdone-marked', userMarked)
-      existing.setAttribute('aria-label', userMarked ? '已完成' : '设为待办')
+      setAttr(existing, 'aria-label', userMarked ? '已完成' : '设为待办')
       const tip = existing.querySelector('.nio-sdone-tip')
-      if (tip) tip.textContent = userMarked ? '已完成' : '设为待办'
+      if (tip) setText(tip, userMarked ? '已完成' : '设为待办')
       continue
     }
     // 若 slot 已含原生状态点（非空闲但判定有误的兜底），不覆盖。
