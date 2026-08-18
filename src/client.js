@@ -825,6 +825,18 @@ function markFlatRowChildren(row) {
 }
 
 /**
+ * 阻断 flat 行的 hover 悬浮卡片：原生会话行的 HoverCard 通过 React 在
+ * root 容器上委托 pointerover 来模拟 pointerenter，行内（冒泡阶段）阻断
+ * pointerover 传播后，React 收不到进入事件 → 卡片不再打开。
+ * 仅影响单列表行；点击 / 拖拽 / CSS hover 均不受影响。幂等。
+ */
+function blockFlatRowHoverCard(row) {
+  if (row.dataset.nioFlatPvh === '1') return
+  row.dataset.nioFlatPvh = '1'
+  row.addEventListener('pointerover', (e) => e.stopPropagation())
+}
+
+/**
  * 渲染（或更新）单个 flat 会话行为三行布局：
  * 第一行 chip（工作区文件夹名）+ 行尾最后用户消息时间；
  * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
@@ -836,6 +848,7 @@ function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
   row.classList.add('nio-flat-row')
   markFlatRowChildren(row)
+  blockFlatRowHoverCard(row)
 
   // 第一行左侧：工作区 chip（复用 nio-hchip 标签样式）
   let chip = row.querySelector('[data-nio-fchip]')
