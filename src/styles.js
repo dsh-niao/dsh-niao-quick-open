@@ -60,7 +60,12 @@ export const CSS = `
 .nio-flat-row[aria-selected="true"] .nio-fchip{color:var(--dsw-alias-state-business-primary)}
 .nio-flat-time{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
 .nio-flat-title{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
-.nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end}
+/* ⋯菜单固定于会话名称行（第二行）最右列：始终占位（覆盖原生 display:none），
+   默认隐藏（opacity/visibility，不改变 grid 布局），hover 会话横幅时显示。
+   仅影响第二行——第一行时间不再被原生 hover 规则隐藏。 */
+.nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
+.nio-flat-row:hover .nio-flat-actions{opacity:1;visibility:visible;pointer-events:auto}
+.nio-flat-row:hover .nio-flat-time{display:inline-flex !important}
 .nio-fprev{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
 /* 有原生状态图标（运行/等待/完成提醒）：图标占第一列，chip/标题后移一列 */
 .nio-flat-has-status .nio-flat-slot{grid-column:1;grid-row:1}
