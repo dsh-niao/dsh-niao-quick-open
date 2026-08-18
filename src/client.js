@@ -31,8 +31,8 @@ const EDITOR_KEY = 'dsh.niao.quickOpen.editor'
 /* 插件配置状态（与宿主端 config.json 同步）                              */
 /* ------------------------------------------------------------------ */
 
-/** 运行时配置缓存：{ enabled, editor, showRestart, menuQuickActions }。 */
-let pluginConfig = { enabled: true, editor: '', showRestart: true, menuQuickActions: false }
+/** 运行时配置缓存：{ enabled, editor, showRestart, menuQuickActions, sessionDoneMark }。 */
+let pluginConfig = { enabled: true, editor: '', showRestart: true, menuQuickActions: false, sessionDoneMark: false }
 
 /**
  * 「需要重启才能生效」的配置基线：页面加载（apply 首次拉取配置）时宿主端
@@ -62,19 +62,22 @@ function configDirty() {
   return pluginConfig.enabled !== configBaseline.enabled ||
     pluginConfig.editor !== configBaseline.editor ||
     pluginConfig.showRestart !== configBaseline.showRestart ||
-    pluginConfig.menuQuickActions !== configBaseline.menuQuickActions
+    pluginConfig.menuQuickActions !== configBaseline.menuQuickActions ||
+    pluginConfig.sessionDoneMark !== configBaseline.sessionDoneMark
 }
 
 /** 应用一份配置补丁：更新缓存，并在任一「显示开关」变化时立即重建对应 UI。 */
 function applyConfigPatch(next) {
-  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string' || typeof next.showRestart === 'boolean' || typeof next.menuQuickActions === 'boolean')
+  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string' || typeof next.showRestart === 'boolean' || typeof next.menuQuickActions === 'boolean' || typeof next.sessionDoneMark === 'boolean')
   if (next && typeof next.enabled === 'boolean') pluginConfig.enabled = next.enabled
   if (next && typeof next.editor === 'string') pluginConfig.editor = next.editor
   if (next && typeof next.showRestart === 'boolean') pluginConfig.showRestart = next.showRestart
   if (next && typeof next.menuQuickActions === 'boolean') pluginConfig.menuQuickActions = next.menuQuickActions
+  if (next && typeof next.sessionDoneMark === 'boolean') pluginConfig.sessionDoneMark = next.sessionDoneMark
   if (changed) {
     try { ensureHeaderRow() } catch { /* header 未就绪时忽略 */ }
     try { ensureRestartButton() } catch { /* 设置区未就绪时忽略 */ }
+    try { ensureSessionDoneDots() } catch { /* 会话区未就绪时忽略 */ }
   }
 }
 
@@ -523,6 +526,234 @@ function ensureWorkspaceMenuActions() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 会话待办标记：空闲会话前的可点击状态圆点                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 会话状态圆点：
+ * - 原生 UI 的「已完成」绿点来自客户端 manager 派生的 completed 字段
+ *   （running→idle 边缘且未打开时置 true，打开即清除，无写接口、不持久化），
+ *   因此本功能用浏览器缓存（localStorage）持久化用户标记，注入圆点覆盖显示。
+ * - 空闲会话：默认不显示圆点，hover 时显示浅灰点 + 提示「设为待办」，
+ *   点击后标记为已完成 → 圆点变绿（与原生 completed 样式一致）。
+ */
+
+/** 会话待办标记的浏览器缓存键（localStorage，仅存标记，不占配置）。 */
+const DONE_IDS_KEY = 'dsh.niao.quickOpen.doneSessionIds'
+
+/** 读取浏览器缓存中的已完成会话 id 列表（损坏/缺失返回空数组）。 */
+function readDoneIds() {
+  try {
+    const raw = window.localStorage.getItem(DONE_IDS_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.filter((id) => typeof id === 'string') : []
+  } catch { return [] }
+}
+
+/** 写入浏览器缓存（整体替换，保持最小体积）。 */
+function writeDoneIds(ids) {
+  try { window.localStorage.setItem(DONE_IDS_KEY, JSON.stringify(ids)) } catch { /* 存储不可用 */ }
+}
+
+/** 用户已标记为「已完成」的会话 id 集合（从浏览器缓存读取）。 */
+function doneSessionIdSet() {
+  return new Set(readDoneIds())
+}
+
+/**
+ * 标记 / 取消标记会话为「已完成」。直接存浏览器缓存（localStorage），
+ * 不走宿主端 set-config —— 不产生「需要重启才能生效」的配置修改；
+ * 取消标记时从缓存中移除该 id，避免缓存累积。
+ */
+function setSessionDone(id, done) {
+  const ids = readDoneIds()
+  const set = new Set(ids)
+  if (done) set.add(id)
+  else set.delete(id)
+  writeDoneIds([...set])
+  try { ensureSessionDoneDots() } catch { /* 会话区未就绪时忽略 */ }
+}
+
+/** 会话快照（会话行注入的数据来源）：返回会话数组，含 id/displayTitle/running/pendingInteraction/completed/blank。 */
+function sessionSnapshotRows() {
+  const sessions = runtimeCtx ? runtimeCtx.get('sessions') : undefined
+  if (!sessions) return []
+  try {
+    const snapshot = sessions.list.getSnapshot()
+    const byId = snapshot && snapshot.byId ? snapshot.byId : {}
+    const ids = snapshot && Array.isArray(snapshot.ids) ? snapshot.ids : []
+    const out = []
+    for (const id of ids) {
+      const s = byId[id]
+      if (!s) continue
+      out.push({
+        id,
+        displayTitle: typeof s.displayTitle === 'string' ? s.displayTitle : '',
+        running: !!s.running,
+        pending: !!s.pendingInteraction,
+        completed: !!s.completed,
+        blank: !!s.blank,
+      })
+    }
+    return out
+  } catch { return [] }
+}
+
+/** 根据行 DOM 解析标题（会话行的 title span 文本）。 */
+function sessionRowTitle(row) {
+  const titleEl = row.querySelector('[class*="title"]')
+  return ((titleEl ? titleEl.textContent : row.textContent) || '').trim()
+}
+
+/** 会话行 → sessionId 映射：行数与会话数一致时按序配对，否则按标题配对（同标题按出现序）。 */
+function mapSessionRowsToIds(rows) {
+  const sessions = sessionSnapshotRows()
+  const out = new Map()
+  if (sessions.length === 0 || rows.length === 0) return out
+  if (rows.length === sessions.length) {
+    for (let i = 0; i < rows.length; i++) out.set(rows[i], sessions[i].id)
+    return out
+  }
+  // 标题配对：构建 title → [id] 队列，按行顺序取用。
+  const byTitle = new Map()
+  for (const s of sessions) {
+    const key = s.displayTitle || s.id
+    const list = byTitle.get(key) || []
+    list.push(s.id)
+    byTitle.set(key, list)
+  }
+  for (const row of rows) {
+    const title = sessionRowTitle(row)
+    if (!title) continue
+    const candidates = byTitle.get(title)
+    if (!candidates || candidates.length === 0) continue
+    out.set(row, candidates.shift())
+  }
+  return out
+}
+
+/** 会话是否处于空闲（原生无状态点、可被标记）：非运行、非等待、非空会话。 */
+function isIdleSession(s) {
+  return !s.running && !s.pending && !s.completed && !s.blank
+}
+
+/** 最近一次已执行「打开自动取消待办」的会话 id（防止同一 current 重复清理）。 */
+let lastClearedSessionId = null
+
+/** 会话切换为当前时，自动取消其待办标记（语义：正在看的会话不再是待办）。 */
+function clearDoneOnOpen() {
+  const sessions = runtimeCtx ? runtimeCtx.get('sessions') : undefined
+  if (!sessions) return
+  let current = null
+  try { current = sessions.list.getSnapshot().current || null } catch { return }
+  if (!current || current === lastClearedSessionId) return
+  lastClearedSessionId = current
+  if (doneSessionIdSet().has(current)) setSessionDone(current, false)
+}
+
+/** 原生状态圆点类名（如 _dot_10orb_3）：动态获取并缓存，样式/阴影/outline 与原生完全一致。 */
+let nativeDotClass = ''
+
+/** 从页面已渲染的原生状态点取类名（用户/运行/已完成会话的圆点均可）。 */
+function findNativeDotClass() {
+  if (nativeDotClass) return nativeDotClass
+  try {
+    const el = document.querySelector('span[data-state]')
+    if (el && el.className && typeof el.className === 'string') nativeDotClass = el.className
+  } catch { /* 忽略 */ }
+  return nativeDotClass
+}
+
+/** 维护会话行前的待办/完成标记圆点；配置关闭时移除全部。幂等。 */
+function ensureSessionDoneDots() {
+  // 配置开关：关闭时清理所有已注入的圆点。
+  const injected = document.querySelectorAll('[data-nio-sdone]')
+  if (!pluginConfig.sessionDoneMark) {
+    for (const el of injected) el.remove()
+    return
+  }
+  const marked = doneSessionIdSet()
+  const rows = Array.from(document.querySelectorAll('[class*="sessionRow"]'))
+  const idByRow = mapSessionRowsToIds(rows)
+  const stateById = new Map(sessionSnapshotRows().map((s) => [s.id, s]))
+  const nativeClass = findNativeDotClass()
+
+  for (const row of rows) {
+    const existing = row.querySelector('[data-nio-sdone]')
+    const sessionId = idByRow.get(row)
+    if (!sessionId) {
+      // 无法解析 id：移除已注入的（避免悬空），下次 scan 再试。
+      if (existing) existing.remove()
+      continue
+    }
+    const s = stateById.get(sessionId)
+    const userMarked = marked.has(sessionId)
+    // 仅对「空闲」会话显示圆点（已标记→绿点常显；未标记→hover 浅灰点）；
+    // 运行 / 等待 / 原生 completed 会话由原生状态点表达，不覆盖。
+    const idle = s ? isIdleSession(s) : false
+    if (!idle) {
+      if (existing) existing.remove()
+      continue
+    }
+    // 原生状态点 slot：会话行的第一个 slot 子元素（16×20 flex 居中）。
+    // 空闲会话的原生 slot 是空的（showStatus=false），把圆点塞进 slot 内部，
+    // 复用其固有 16px 占位 → 不产生额外空间、标题不偏移。
+    let slot = null
+    for (const child of row.children) {
+      if (child.classList && child.className.toString().includes('slot')) { slot = child; break }
+    }
+    if (existing) {
+      // 状态可能变化（标记 ↔ 未标记），刷新类名与提示。
+      // 若行解析到的 id 与圆点上记录的 id 不一致，说明配对漂移：
+      // 以圆点记录的 id 为准，避免误操作（点击处理用 dataset）。
+      if (existing.dataset.nioSid && existing.dataset.nioSid !== sessionId) {
+        existing.remove()
+        continue
+      }
+      existing.classList.toggle('nio-sdone-marked', userMarked)
+      existing.setAttribute('aria-label', userMarked ? '已完成' : '设为待办')
+      const tip = existing.querySelector('.nio-sdone-tip')
+      if (tip) tip.textContent = userMarked ? '已完成' : '设为待办'
+      continue
+    }
+    // 若 slot 已含原生状态点（非空闲但判定有误的兜底），不覆盖。
+    if (slot && slot.querySelector('[data-state]')) continue
+    // 注入圆点：结构复刻原生 slot（16×20 flex 居中 + 10px 圆点 + 隐藏文本）。
+    // 内层圆点直接挂原生状态点类名（如 _dot_10orb_3），原生规则（尺寸/阴影/
+    // outline/transition）原样生效，仅用我们的类覆盖背景颜色。
+    const dot = document.createElement('button')
+    dot.type = 'button'
+    dot.className = 'nio-sdone' + (userMarked ? ' nio-sdone-marked' : '')
+    dot.setAttribute('data-nio-sdone', '1')
+    dot.setAttribute('data-nio-sid', sessionId)
+    dot.setAttribute('aria-label', userMarked ? '已完成' : '设为待办')
+    const inner = document.createElement('span')
+    inner.className = (nativeClass ? nativeClass + ' ' : '') + 'nio-sdone-dot'
+    inner.style.width = '10px'
+    inner.style.height = '10px'
+    const vh = document.createElement('span')
+    vh.className = 'nio-sdone-vh'
+    vh.textContent = userMarked ? '已完成' : '设为待办'
+    const tip = document.createElement('span')
+    tip.className = 'nio-sdone-tip'
+    tip.textContent = userMarked ? '已完成' : '设为待办'
+    dot.appendChild(inner)
+    dot.appendChild(vh)
+    dot.appendChild(tip)
+    dot.addEventListener('click', (e) => {
+      e.stopPropagation()
+      // 以圆点记录的 id 为准（不依赖重扫配对），点击即切换标记。
+      const sid = dot.dataset.nioSid || sessionId
+      const nowMarked = doneSessionIdSet().has(sid)
+      setSessionDone(sid, !nowMarked)
+    })
+    // 有原生 slot 则塞进 slot（复用占位，零额外空间）；否则插行首（复刻 slot 尺寸）。
+    if (slot) slot.appendChild(dot)
+    else row.insertBefore(dot, row.firstChild)
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* 设置面板：界面功能（settings.section）                                */
 /* ------------------------------------------------------------------ */
 
@@ -629,6 +860,23 @@ function ConfigPanel() {
             checked: !!state.menuQuickActions,
             disabled: !state.enabled,
             onChange: (e) => save({ menuQuickActions: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
+    // 「会话待办标记」组（与「工作区快捷按钮」同级）：空闲会话前的标记圆点开关。
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '会话待办标记'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '在空闲会话前显示可点击的标记圆点，将其标记为已完成'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.sessionDoneMark,
+            onChange: (e) => save({ sessionDoneMark: e.target.checked }),
           }),
           React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
         ),
@@ -837,11 +1085,13 @@ function showRebootWait(failed) {
 /* DOM 观察与扫描                                                       */
 /* ------------------------------------------------------------------ */
 
-/** 维护会话 header 工作区行、左下角重启按钮与工作区「⋯」菜单快捷按钮行（DOM 由 React 管理，每次变化后补回）。 */
+/** 维护会话 header 工作区行、左下角重启按钮、工作区「⋯」菜单快捷按钮行与会话待办标记圆点（DOM 由 React 管理，每次变化后补回）。 */
 function scan() {
   try { ensureHeaderRow() } catch { /* header 尚未就绪时静默跳过 */ }
   try { ensureRestartButton() } catch { /* 设置区尚未就绪时静默跳过 */ }
   try { ensureWorkspaceMenuActions() } catch { /* 菜单尚未就绪时静默跳过 */ }
+  try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
+  try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
 }
 
 let scanScheduled = false
@@ -886,6 +1136,18 @@ const CSS = `
 .nio-mqa-btn:hover .nio-mqa-tip{opacity:1}
 .nio-mqa-feedback{font-size:11px;line-height:16px;color:var(--dsw-alias-state-success-primary);margin-left:2px;white-space:nowrap}
 .nio-mqa-feedback.err{color:var(--dsw-alias-state-error-primary)}
+/* 会话待办标记圆点：完整复刻原生 _dot_10orb_3（span 透明 + :before 晕圈 + :after 内芯，currentColor 着色） */
+.nio-sdone{position:relative;box-sizing:border-box;flex:none;width:16px;height:20px;border:none;background:transparent;padding:0;margin:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dsw-alias-label-tertiary)}
+/* 内层圆点：与原生规则一致（position:relative + :before/:after 双层圆），仅颜色不同 */
+.nio-sdone-dot{position:relative;display:inline-block;flex:none;width:10px;height:10px;box-sizing:border-box;opacity:0 !important;transition:opacity .12s ease,color .15s ease !important;color:var(--dsw-alias-label-tertiary) !important}
+.nio-sdone-dot:before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;border-radius:50%;background:currentColor;opacity:.1}
+.nio-sdone-dot:after{content:"";position:absolute;top:20%;right:20%;bottom:20%;left:20%;border-radius:50%;background:currentColor}
+[class*="sessionRow"]:hover .nio-sdone .nio-sdone-dot{opacity:.8 !important}
+.nio-sdone:hover .nio-sdone-dot{opacity:1 !important}
+.nio-sdone-marked .nio-sdone-dot{opacity:1 !important;color:var(--dsw-alias-state-success-primary) !important}
+.nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
+.nio-sdone-tip{position:absolute;bottom:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-sdone:hover .nio-sdone-tip{opacity:1}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「重启以生效」横幅 */
