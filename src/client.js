@@ -30,6 +30,7 @@ import { ensureWorkspaceMenuActions } from './workspace-menu.js'
 import { clearDoneOnOpen, ensureSessionDoneDots } from './session-done.js'
 import { ensureFlatEnhance, fixFlatRowMenuPosition, hideFlatHoverCards, installFlatPointerGuard } from './flat-list.js'
 import { installDblclickRename } from './dblclick-rename.js'
+import { ensureHeaderViewSwitches } from './header-view-switches.js'
 import { ConfigPanel } from './settings.js'
 import { ensureRestartButton } from './restart.js'
 import { CSS } from './styles.js'
@@ -46,6 +47,7 @@ function scan() {
   try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
+  try { ensureHeaderViewSwitches() } catch { /* 头部图标未就绪时静默跳过 */ }
   try { fixFlatRowMenuPosition() } catch { /* 菜单定位失败时忽略 */ }
   try { hideFlatHoverCards() } catch { /* 卡片隐藏失败时忽略 */ }
 }

@@ -53,6 +53,14 @@ export const CSS = `
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
 /* 双击重命名：菜单在绘制前被隐藏（配合 MutationObserver 同步处理，杜绝闪现） */
 .nio-hide-menu{display:none !important}
+/* 工作区栏头部增强：隐藏原生「分组+排序」悬浮弹窗按钮 */
+.nio-hide-viewoptions{display:none !important}
+/* 工作区栏头部增强：分组/排序切换图标（与原生 headerActions 图标同风格） */
+.nio-hvswitch{position:relative;cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:transparent;border:none;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.nio-hvswitch:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.nio-hvswitch svg{display:block;width:16px;height:16px}
+.nio-hvswitch-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-hvswitch:hover .nio-hvswitch-tip{opacity:1}
 /* 单列表（flat）会话行：三行结构。
    全部规则以 [class*="flatList"][data-nio-flat-style] 为前缀：容器仅在
    「单列表增强样式」开关开启时带 data-nio-flat-style 标记，关闭后所有
