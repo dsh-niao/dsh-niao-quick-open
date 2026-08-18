@@ -64,19 +64,20 @@ export const CSS = `
    sessionRow 上的 margin-top:0 无效（margin 在外层 span 上）。这里在
    容器级覆盖相邻兄弟的 margin。 */
 [class*="flatList"] > * + *{margin-top:0 !important}
-[class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
+[class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:minmax(28px,auto) minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
 [class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
-/* 第一行左侧组（我们的容器：待办圆点 + 工作区名称）；
-   默认占第一列（空闲），有原生状态图标时图标占第一列、本容器移到第二列。
-   min-width:max-content：保证本组宽度永不收缩——当会话标题很长时，
-   grid 的 auto 第一列可能被压缩到 0，工作区名称会被挤没；max-content
-   让第一列始终容纳完整工作区名称（fchip 自身有 max-width:180 截断）。 */
-[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;display:flex;align-items:center;gap:6px;min-width:max-content}
-[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:2}
-/* 待办圆点（第一行左侧组内） */
-[class*="flatList"] [data-nio-flat-line1] .nio-sdone{flex:none}
+/* 第一行左侧组（我们的容器：待办圆点 + 工作区名称）。
+   待办圆点绝对定位在容器最左（position:relative + padding-left），从
+   flex 流中移除——无论标题多长、grid 如何压缩，圆点都不会被挤没；
+   工作区名称由 min-width:max-content 保证完整（fchip 自身 max-width:180
+   截断省略）。有原生状态图标时图标占列1（16px）、本容器跨列1-2，
+   padding-left:16px 为图标留位，内容从图标右侧开始。 */
+[class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;position:relative;box-sizing:border-box;display:flex;align-items:center;min-width:max-content;padding-left:22px}
+[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:1 / 3;padding-left:16px}
+/* 待办圆点（绝对定位在左侧组最左，不占 flex 流、永不被压缩） */
+[class*="flatList"] [data-nio-flat-line1] .nio-sdone{position:absolute;left:0;top:50%;transform:translateY(-50%)}
 /* 工作区名称（第一行左侧组内；加粗；非选中正常色，选中亮色）。
    flex-shrink:0：在左侧组 flex 内不收缩，超长由 max-width:180 截断省略 */
 [class*="flatList"] [data-nio-flat-line1] [data-nio-fchip]{box-sizing:border-box;flex:none;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
