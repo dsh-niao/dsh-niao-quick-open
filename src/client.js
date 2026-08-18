@@ -31,28 +31,51 @@ const EDITOR_KEY = 'dsh.niao.quickOpen.editor'
 /* 插件配置状态（与宿主端 config.json 同步）                              */
 /* ------------------------------------------------------------------ */
 
-/** 运行时配置缓存：{ enabled, editor }。 */
-let pluginConfig = { enabled: true, editor: '' }
+/** 运行时配置缓存：{ enabled, editor, showRestart, menuQuickActions }。 */
+let pluginConfig = { enabled: true, editor: '', showRestart: true, menuQuickActions: false }
+
+/**
+ * 「需要重启才能生效」的配置基线：页面加载（apply 首次拉取配置）时宿主端
+ * 的配置快照。此后 set-config 修改的配置与其比对，差异即视为待重启生效；
+ * 重启后页面重载会重新取基线，横幅随之消失。模块级变量使其在设置面板
+ * 关闭/重开之间保持（需求：关闭设置再打开横幅仍展示）。
+ */
+let configBaseline = null
 
 /** apply 时保存的 client 根 ctx（仅保存引用，供 sessions / slots 可选读取）。 */
 let runtimeCtx = null
 
-/** 从宿主端拉取最新配置并更新缓存。 */
+/** 从宿主端拉取最新配置并更新缓存；首次成功时记录配置基线。 */
 async function refreshConfig() {
   const res = await rpc('get-config')
   if (res.ok && res.value && res.value.config) {
+    if (configBaseline === null) configBaseline = { ...res.value.config }
     applyConfigPatch(res.value.config)
     return true
   }
   return false
 }
 
-/** 应用一份配置补丁：更新缓存，并在「显示开关」变化时立即重建 header 行。 */
+/** 当前配置与基线是否有差异（即存在需要重启才能生效的修改）。 */
+function configDirty() {
+  if (!configBaseline) return false
+  return pluginConfig.enabled !== configBaseline.enabled ||
+    pluginConfig.editor !== configBaseline.editor ||
+    pluginConfig.showRestart !== configBaseline.showRestart ||
+    pluginConfig.menuQuickActions !== configBaseline.menuQuickActions
+}
+
+/** 应用一份配置补丁：更新缓存，并在任一「显示开关」变化时立即重建对应 UI。 */
 function applyConfigPatch(next) {
-  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string')
+  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string' || typeof next.showRestart === 'boolean' || typeof next.menuQuickActions === 'boolean')
   if (next && typeof next.enabled === 'boolean') pluginConfig.enabled = next.enabled
   if (next && typeof next.editor === 'string') pluginConfig.editor = next.editor
-  if (changed) { try { ensureHeaderRow() } catch { /* header 未就绪时忽略 */ } }
+  if (next && typeof next.showRestart === 'boolean') pluginConfig.showRestart = next.showRestart
+  if (next && typeof next.menuQuickActions === 'boolean') pluginConfig.menuQuickActions = next.menuQuickActions
+  if (changed) {
+    try { ensureHeaderRow() } catch { /* header 未就绪时忽略 */ }
+    try { ensureRestartButton() } catch { /* 设置区未就绪时忽略 */ }
+  }
 }
 
 /** 读取已设置的常用编辑器 id；未设置返回空串。 */
@@ -156,18 +179,43 @@ const FOLDER_PATH = 'M5.19629 1.57104C5.81144 1.5711 6.38623 1.8786 6.72754 2.39
 const CODE_PATH = 'M12.3368 1.53569L11.931 4.43172H14.8086V5.79673H11.7404L11.1962 9.67859H14.2839V11.0436H11.0056L10.4994 14.6529L9.14873 14.4643L9.62731 11.0436H5.75876L5.25252 14.6529L3.90186 14.4643L4.38043 11.0436H1.69141V9.67859H4.57104L5.11417 5.79673H2.21609V4.43172H5.30581L5.73724 1.34713L7.08995 1.53569L6.68414 4.43172H10.5527L10.9841 1.34713L12.3368 1.53569ZM5.94937 9.67859H9.81791L10.361 5.79673H6.49353L5.94937 9.67859Z'
 const COPY_PATH = 'M6.14929 4.02032C7.11197 4.02032 7.87983 4.02016 8.49597 4.07598C9.12128 4.13269 9.65792 4.25188 10.1415 4.53106C10.7202 4.8653 11.2008 5.3459 11.535 5.92462C11.8142 6.40818 11.9334 6.94481 11.9901 7.57012C12.0459 8.18625 12.0458 8.95419 12.0458 9.9168C12.0458 10.8795 12.0459 11.6473 11.9901 12.2635C11.9334 12.8888 11.8142 13.4254 11.535 13.909C11.2008 14.4877 10.7202 14.9683 10.1415 15.3025C9.65792 15.5817 9.12128 15.7009 8.49597 15.7576C7.87984 15.8134 7.11196 15.8133 6.14929 15.8133C5.18667 15.8133 4.41874 15.8134 3.80261 15.7576C3.1773 15.7009 2.64067 15.5817 2.1571 15.3025C1.5784 14.9683 1.09778 14.4877 0.76355 13.909C0.484366 13.4254 0.365184 12.8888 0.308472 12.2635C0.252649 11.6473 0.252808 10.8795 0.252808 9.9168C0.252808 8.95418 0.252664 8.18625 0.308472 7.57012C0.365184 6.94481 0.484366 6.40818 0.76355 5.92462C1.09777 5.34589 1.57839 4.86529 2.1571 4.53106C2.64067 4.25188 3.1773 4.13269 3.80261 4.07598C4.41874 4.02017 5.18666 4.02032 6.14929 4.02032ZM6.14929 5.37774C5.16181 5.37774 4.46634 5.37761 3.92566 5.42657C3.39434 5.47472 3.07859 5.56574 2.83582 5.70587C2.4632 5.92106 2.15354 6.2307 1.93835 6.60333C1.79823 6.8461 1.70721 7.16185 1.65906 7.69317C1.6101 8.23385 1.61023 8.92933 1.61023 9.9168C1.61023 10.9043 1.61009 11.5998 1.65906 12.1404C1.70721 12.6717 1.79823 12.9875 1.93835 13.2303C2.15356 13.6029 2.46321 13.9126 2.83582 14.1277C3.07859 14.2679 3.39434 14.3589 3.92566 14.407C4.46634 14.456 5.16182 14.4559 6.14929 14.4559C7.13682 14.4559 7.83224 14.456 8.37292 14.407C8.90425 14.3589 9.21999 14.2679 9.46277 14.1277C9.83535 13.9126 10.145 13.6029 10.3602 13.2303C10.5004 12.9875 10.5914 12.6717 10.6395 12.1404C10.6885 11.5998 10.6884 10.9043 10.6884 9.9168C10.6884 8.92934 10.6885 8.23384 10.6395 7.69317C10.5914 7.16185 10.5004 6.8461 10.3602 6.60333C10.1451 6.23071 9.83536 5.92107 9.46277 5.70587C9.21999 5.56574 8.90424 5.47472 8.37292 5.42657C7.83224 5.3776 7.13682 5.37774 6.14929 5.37774ZM9.80164 0.367975C10.7638 0.367975 11.5314 0.367958 12.1476 0.423777C12.7729 0.480489 13.3095 0.599671 13.7931 0.878855C14.3718 1.21309 14.8524 1.6937 15.1866 2.27241C15.4658 2.75597 15.585 3.29261 15.6417 3.91791C15.6975 4.53405 15.6974 5.30198 15.6974 6.2646C15.6974 7.22721 15.6975 7.99514 15.6417 8.61128C15.585 9.23659 15.4658 9.77322 15.1866 10.2568C14.8524 10.8355 14.3718 11.3161 13.7931 11.6503C13.3095 11.9295 12.7729 12.0487 12.1476 12.1054C11.5314 12.1612 10.7638 12.1611 9.80164 12.1611C8.83902 12.1611 8.0711 12.1612 7.45497 12.1054C6.82966 12.0487 6.29303 11.9295 5.80946 11.6503C5.23075 11.3161 4.75015 10.8355 4.41592 10.2568C4.13674 9.77322 4.01756 9.23659 3.96084 8.61128C3.90502 7.99515 3.90518 7.22722 3.90518 6.2646C3.90518 5.30198 3.90502 4.53404 3.96084 3.91791C4.01756 3.29261 4.13674 2.75597 4.41592 2.27241C4.75015 1.6937 5.23077 1.21309 5.80946 0.878855C6.29303 0.599671 6.82966 0.480489 7.45497 0.423777C8.0711 0.367957 8.83903 0.367975 9.80164 0.367975ZM9.80164 1.72539C8.81416 1.72539 8.1187 1.72526 7.57802 1.77422C7.0467 1.82237 6.73095 1.91339 6.48818 2.05352C6.11555 2.26871 5.8059 2.57835 5.59071 2.95098C5.45059 3.19375 5.35957 3.5095 5.31142 4.04082C5.26246 4.5815 5.26259 5.27698 5.26259 6.2646C5.26259 7.25208 5.26245 7.94755 5.31142 8.48807C5.35957 9.01939 5.45059 9.33514 5.59071 9.57791C5.8059 9.95053 6.11555 10.2602 6.48818 10.4754C6.73095 10.6155 7.0467 10.7065 7.57802 10.7547C8.1187 10.8036 8.81417 10.8035 9.80164 10.8035C10.7891 10.8035 11.4846 10.8037 12.0253 10.7547C12.5566 10.7065 12.8723 10.6155 13.1151 10.4754C13.4877 10.2602 13.7974 9.95053 14.0126 9.57791C14.1527 9.33514 14.2437 9.01939 14.2919 8.48807C14.3409 7.94755 14.3407 7.25207 14.3407 6.2646C14.3407 5.27712 14.3409 4.58164 14.2919 4.04082C14.2437 3.5095 14.1527 3.19375 14.0126 2.95098C13.7974 2.57836 13.4877 2.26871 13.1151 2.05352C12.8723 1.91339 12.5566 1.82237 12.0253 1.77422C11.4846 1.72526 10.7891 1.72539 9.80164 1.72539Z'
 
-/** 用一组 path 数据生成 16×16 SVG 元素。 */
-function makeSvg(ds) {
+/**
+ * 生成 SVG 元素。fill 风格：元素为 path 字符串，自动 fill=currentColor；
+ * stroke 风格（Lucide 类，stroke=true）：元素为 { d } 或 { circle } 形状，
+ * svg 级设置 stroke=currentColor + 圆头端点，不填充。
+ */
+function makeSvg(shapes, viewBox = '0 0 16 16', stroke = false) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.setAttribute('width', '16')
   svg.setAttribute('height', '16')
-  svg.setAttribute('viewBox', '0 0 16 16')
+  svg.setAttribute('viewBox', viewBox)
   svg.setAttribute('fill', 'none')
-  for (const d of ds) {
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    p.setAttribute('d', d)
-    p.setAttribute('fill', 'currentColor')
-    svg.appendChild(p)
+  if (stroke) {
+    svg.setAttribute('stroke', 'currentColor')
+    svg.setAttribute('stroke-width', '2')
+    svg.setAttribute('stroke-linecap', 'round')
+    svg.setAttribute('stroke-linejoin', 'round')
+  }
+  for (const shape of shapes) {
+    if (typeof shape === 'string') {
+      // fill 风格 path
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      p.setAttribute('d', shape)
+      p.setAttribute('fill', 'currentColor')
+      svg.appendChild(p)
+    } else if (shape.circle) {
+      // stroke 风格 circle
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+      c.setAttribute('cx', String(shape.circle.cx))
+      c.setAttribute('cy', String(shape.circle.cy))
+      c.setAttribute('r', String(shape.circle.r))
+      svg.appendChild(c)
+    } else {
+      // stroke 风格 path
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      p.setAttribute('d', shape.d)
+      svg.appendChild(p)
+    }
   }
   return svg
 }
@@ -175,6 +223,12 @@ function makeSvg(ds) {
 const folderSvg = makeSvg([FOLDER_PATH])
 const codeSvg = makeSvg([CODE_PATH])
 const copySvg = makeSvg([COPY_PATH])
+/** 重启图标（Lucide circle-power：圆圈 + 电源竖线 + 缺口弧），24 视口 stroke 风格。 */
+const restartSvg = makeSvg([
+  { circle: { cx: 12, cy: 12, r: 10 } },
+  { d: 'M12 7v4' },
+  { d: 'M7.998 9.003a5 5 0 1 0 8-.005' },
+], '0 0 24 24', true)
 
 /* ------------------------------------------------------------------ */
 /* 会话 header：工作区行 + 会话名放大                                    */
@@ -331,6 +385,143 @@ function ensureHeaderRow() {
   header.insertBefore(fresh, titleRow || header.firstChild)
 }
 
+/** 从 workspaces service 构建 title → path 映射（菜单注入用）。 */
+function workspacePathMap() {
+  const workspaces = runtimeCtx ? runtimeCtx.get('workspaces') : undefined
+  const map = new Map()
+  if (!workspaces) return map
+  try {
+    const items = workspaces.list.getSnapshot().items
+    for (const w of items) {
+      if (w && typeof w.title === 'string' && typeof w.path === 'string' && w.title && !map.has(w.title)) {
+        map.set(w.title, w.path)
+      }
+    }
+  } catch { /* 快照未就绪时返回空映射 */ }
+  return map
+}
+
+/* ------------------------------------------------------------------ */
+/* 工作区「⋯」菜单：快捷按钮行                                          */
+/* ------------------------------------------------------------------ */
+
+/** 工作区菜单的标志性菜单项文案（zh / en）。 */
+const WORKSPACE_MENU_MARK = new Set(['删除工作区', 'Delete workspace'])
+
+/** 判断一个 [role="menu"] 是否为工作区「⋯」菜单（含「删除工作区」项）。 */
+function isWorkspaceMenu(el) {
+  if (!el || el.nodeType !== 1 || el.getAttribute('role') !== 'menu') return false
+  const items = el.querySelectorAll('[role="menuitem"]')
+  for (const item of items) {
+    if (WORKSPACE_MENU_MARK.has((item.textContent || '').trim())) return true
+  }
+  return false
+}
+
+/** 从菜单内文案判断界面语言：含「删除工作区」为 zh，否则 en。 */
+function workspaceMenuLocale(menu) {
+  const items = menu.querySelectorAll('[role="menuitem"]')
+  for (const item of items) {
+    if ((item.textContent || '').trim() === '删除工作区') return 'zh'
+  }
+  return 'en'
+}
+
+/** 找到当前处于打开状态（menuOpen 类）的工作区行，解析其显示名称。 */
+function openWorkspaceRowTitle() {
+  const rows = document.querySelectorAll('[role="treeitem"][class*="menuOpen"]')
+  for (const row of rows) {
+    // 工作区行（projectRow）才注入；会话行（sessionRow）跳过。
+    if (!row.className || !row.className.toString().includes('projectRow')) continue
+    const project = row.querySelector('[class*="projectText"]')
+    let text = ''
+    if (project) {
+      const title = project.querySelector('[class*="title"]')
+      text = ((title ? title.textContent : project.textContent) || '').trim()
+    }
+    if (!text) text = (row.textContent || '').trim()
+    if (text) return text
+  }
+  return ''
+}
+
+/** 维护工作区「⋯」菜单内的快捷按钮行；配置关闭时不注入并移除已有行。幂等。 */
+function ensureWorkspaceMenuActions() {
+  // 配置开关：关闭时清理所有已注入的按钮行。
+  const injected = document.querySelectorAll('[data-nio-mqa]')
+  if (!pluginConfig.menuQuickActions) {
+    for (const el of injected) el.remove()
+    return
+  }
+  // 每个打开的菜单注入一次（菜单关闭后由 React 卸载，重新打开重建）。
+  const menus = document.querySelectorAll('[role="menu"]')
+  for (const menu of menus) {
+    if (!isWorkspaceMenu(menu) || menu.querySelector('[data-nio-mqa]')) continue
+    const dict = pickDict(workspaceMenuLocale(menu) === 'zh')
+    // 工作区名：从打开的 menuOpen 工作区行（projectRow）解析（菜单项本身无名称）。
+    const title = openWorkspaceRowTitle()
+    if (!title) continue
+    const path = workspacePathMap().get(title) || ''
+    if (!path) continue
+    // 标记菜单，供 CSS 解除 overflow 裁剪（tooltip 才能显示）。
+    menu.setAttribute('data-nio-mqa-menu', '1')
+    // 行挂在 list 末尾（viewport 滚动容器之外）：既不让滚动条出现，
+    // 也不让悬浮提示被 viewport 的 overflow 裁剪。
+    const row = document.createElement('div')
+    row.className = 'nio-mqa'
+    row.setAttribute('data-nio-mqa', '1')
+    const mkBtn = (tip, icon, onClick) => {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'nio-mqa-btn'
+      btn.setAttribute('aria-label', tip)
+      const tipEl = document.createElement('span')
+      tipEl.className = 'nio-mqa-tip'
+      tipEl.textContent = tip
+      btn.appendChild(icon.cloneNode(true))
+      btn.appendChild(tipEl)
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onClick()
+      })
+      return btn
+    }
+    const mkFeedback = () => {
+      const chip = document.createElement('span')
+      chip.className = 'nio-mqa-feedback'
+      chip.setAttribute('data-nio-mqa-feedback', '1')
+      row.appendChild(chip)
+      return chip
+    }
+    row.appendChild(mkBtn(dict.copyTip, copySvg, async () => {
+      const ok = await copyText(path)
+      const chip = mkFeedback()
+      chip.textContent = ok ? dict.copied : dict.openFailed + dict.unknown
+      window.setTimeout(() => { if (chip.isConnected) chip.remove() }, 1800)
+    }))
+    row.appendChild(mkBtn(dict.finder, folderSvg, async () => {
+      const res = await rpc('open-in-finder', { cwd: path })
+      const chip = mkFeedback()
+      if (!res.ok) chip.textContent = dict.openFailed + res.error
+      else if (res.value && res.value.ok === false) chip.textContent = dict.openFailed + dict.unknown
+      chip.classList.toggle('err', !(res.ok && res.value && res.value.ok !== false))
+      window.setTimeout(() => { if (chip.isConnected) chip.remove() }, 1800)
+    }))
+    row.appendChild(mkBtn(dict.openEditor, codeSvg, async () => {
+      const id = getEditor()
+      const chip = mkFeedback()
+      if (!id) { chip.textContent = dict.pleaseSet; chip.classList.add('err') }
+      else {
+        const res = await rpc('open-with-editor', { cwd: path, editorId: id })
+        if (!res.ok) chip.textContent = dict.openFailed + res.error
+        else if (res.value && (res.value.opened === false || res.value.ok === false)) chip.textContent = dict.openFailed + (res.value.reason || dict.unknown)
+      }
+      window.setTimeout(() => { if (chip.isConnected) chip.remove() }, 1800)
+    }))
+    menu.appendChild(row)
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* 设置面板：界面功能（settings.section）                                */
 /* ------------------------------------------------------------------ */
@@ -340,14 +531,20 @@ function ConfigPanel() {
   const [state, setState] = React.useState(null)
   const [editors, setEditors] = React.useState([])
   const [loadError, setLoadError] = React.useState('')
+  // 需要重启才能生效的配置修改存在与否；由模块级基线 + 当前配置实时判定，
+  // 初始值立即计算（关闭设置再打开时基线/配置仍在内存，横幅保持展示）。
+  const [dirty, setDirty] = React.useState(configDirty())
 
   React.useEffect(() => {
     let alive = true
     Promise.all([rpc('get-config'), rpc('list-editors')]).then(([configRes, editorsRes]) => {
       if (!alive) return
       if (configRes.ok && configRes.value && configRes.value.config) {
+        // 首次取得宿主端配置时（apply 的 refreshConfig 尚未完成的兜底）记录基线。
+        if (configBaseline === null) configBaseline = { ...configRes.value.config }
         setState(configRes.value.config)
         applyConfigPatch(configRes.value.config)
+        setDirty(configDirty())
       } else {
         setLoadError(configRes.error || '配置读取失败')
       }
@@ -361,6 +558,8 @@ function ConfigPanel() {
       if (res.ok && res.value && res.value.config) {
         setState(res.value.config)
         applyConfigPatch(res.value.config)
+        // 保存后重新判定：改动 → 出现横幅；改回基线 → 横幅消失。
+        setDirty(configDirty())
       }
     })
   }
@@ -373,6 +572,19 @@ function ConfigPanel() {
   }
 
   return React.createElement('div', { className: 'nio-settings' },
+    // 顶部横幅：有需要重启才能生效的配置修改时出现。
+    dirty && React.createElement('div', { className: 'nio-settings-banner' },
+      React.createElement('span', { className: 'nio-settings-banner-text' }, '有配置修改需要重启才能生效'),
+      React.createElement('button', {
+        type: 'button',
+        className: 'nio-settings-banner-btn',
+        onClick: () => showRestartConfirm({
+          title: '重启以生效',
+          desc: '即将硬性重启 DeepSeek Harness 服务，以使本次修改生效。所有正在运行的会话会暂时中断，服务关闭后以相同方式重新启动，页面会自动恢复。',
+          okText: '重启',
+        }),
+      }, '重启以生效'),
+    ),
     // 「工作区快捷按钮」组：开关 + 其子项「常用编辑器」（缩进）。
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
@@ -405,17 +617,231 @@ function ConfigPanel() {
         editors.map((ed) => React.createElement('option', { value: ed.id, key: ed.id }, ed.name || ed.id)),
         ),
       ),
+      // 子项：工作区行菜单快捷按钮（随主开关禁用）
+      React.createElement('div', { className: 'nio-settings-sub' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '工作区行菜单快捷按钮'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '在工作区「⋯」菜单中展示一行快捷按钮（复制路径 / 访达显示 / 编辑器打开）'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.menuQuickActions,
+            disabled: !state.enabled,
+            onChange: (e) => save({ menuQuickActions: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
+    // 「重启按钮」组（与「工作区快捷按钮」同级）：开关控制左下角按钮是否显示。
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '重启按钮'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '在界面左下角设置按钮右侧显示「硬性重启」按钮'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.showRestart,
+            onChange: (e) => save({ showRestart: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
     ),
   )
+}
+
+/* ------------------------------------------------------------------ */
+/* 左下角重启按钮 + 二次确认 + 重启等待                                  */
+/* ------------------------------------------------------------------ */
+
+/** 定位左下角设置区容器（重启按钮的注入锚点）。多级回退，不依赖单一类名。 */
+function findSettingsArea() {
+  // 1) slot 系统为 renderSlot("sidebar.settings") 输出加的 data-slot 容器（最稳，无 hash 类名依赖）。
+  const bySlot = document.querySelector('[data-slot="sidebar.settings"]')
+  if (bySlot) return bySlot
+  // 2) ui-sidebar 的 settingsArea hash 类名。
+  const byClass = document.querySelector('[class*="settingsArea"]')
+  if (byClass) return byClass
+  // 3) 兜底：设置触发器按钮（aria-haspopup="dialog"）的父容器。
+  const trigger = document.querySelector('button[aria-haspopup="dialog"]')
+  return trigger && trigger.parentElement ? trigger.parentElement : null
+}
+
+/** 在设置按钮（sidebar 左下角 settingsArea）右侧注入「重启」图标按钮。幂等。 */
+function ensureRestartButton() {
+  // 配置开关：关闭时移除已注入的按钮（若存在），不再注入。
+  const existing = document.querySelector('[data-nio-rst]')
+  if (!pluginConfig.showRestart) {
+    if (existing) existing.remove()
+    return
+  }
+  if (existing) return
+  const area = findSettingsArea()
+  if (!area) {
+    if (window.console) console.warn('[dsh-niao-quick-open] 未找到设置区锚点（sidebar.settings slot）')
+    return
+  }
+  // 折叠（rail）模式侧栏太窄放不下第二个图标，跳过注入（展开后由 scan 补回）。
+  if (area.closest('[class*="collapsed"]')) return
+  // 定位上下文：真正的布局盒 settingsArea（data-slot 容器是 display:contents）。
+  const layout = area.closest('[class*="settingsArea"]') || area
+  layout.classList.add('nio-rst-area')
+
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'nio-rst'
+  btn.setAttribute('data-nio-rst', '1')
+  btn.setAttribute('aria-label', '硬性重启')
+  const tip = document.createElement('span')
+  tip.className = 'nio-rst-tip'
+  tip.textContent = '硬性重启'
+  btn.appendChild(restartSvg.cloneNode(true))
+  btn.appendChild(tip)
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    showRestartConfirm()
+  })
+  // 按钮留在 data-slot 容器（与设置触发器同层），视觉上 absolute 定位到设置行右侧。
+  area.appendChild(btn)
+  if (window.console) console.log('[dsh-niao-quick-open] 重启按钮已注入', area.tagName, (area.className || '').toString().slice(0, 80))
+}
+
+/** 当前打开的重启确认层 / 重启等待层元素。 */
+let restartOverlay = null
+
+/** 关闭当前重启确认层或等待层并解除监听。 */
+function closeRestartOverlay() {
+  if (!restartOverlay) return
+  if (typeof restartOverlay._nioCleanup === 'function') restartOverlay._nioCleanup()
+  restartOverlay.remove()
+  restartOverlay = null
+}
+
+/**
+ * 弹出「重启 DeepSeek Harness？」二次确认框。
+ * @param opts - 可定制文案：{ title, desc, okText }；不传用默认（左下角按钮触发）。
+ */
+function showRestartConfirm(opts) {
+  if (restartOverlay) closeRestartOverlay()
+  const text = opts || {}
+  const overlay = document.createElement('div')
+  overlay.className = 'nio-confirm'
+  overlay.setAttribute('data-nio-confirm', '1')
+  const dialog = document.createElement('div')
+  dialog.className = 'nio-confirm-dialog'
+  dialog.setAttribute('role', 'dialog')
+  dialog.setAttribute('aria-modal', 'true')
+  dialog.setAttribute('aria-labelledby', 'nio-confirm-title')
+  const title = document.createElement('div')
+  title.className = 'nio-confirm-title'
+  title.id = 'nio-confirm-title'
+  title.textContent = text.title || '重启 DeepSeek Harness？'
+  const desc = document.createElement('div')
+  desc.className = 'nio-confirm-desc'
+  desc.textContent = text.desc || '将硬性重启 DeepSeek Harness 服务：所有正在运行的会话会暂时中断，服务关闭后以相同方式重新启动，页面会自动恢复。'
+  const actions = document.createElement('div')
+  actions.className = 'nio-confirm-actions'
+  const cancel = document.createElement('button')
+  cancel.type = 'button'
+  cancel.className = 'nio-confirm-btn'
+  cancel.textContent = '取消'
+  const ok = document.createElement('button')
+  ok.type = 'button'
+  ok.className = 'nio-confirm-btn nio-confirm-danger'
+  ok.textContent = text.okText || '确认重启'
+  actions.appendChild(cancel)
+  actions.appendChild(ok)
+  dialog.appendChild(title)
+  dialog.appendChild(desc)
+  dialog.appendChild(actions)
+  overlay.appendChild(dialog)
+
+  const onKey = (e) => { if (e.key === 'Escape') closeRestartOverlay() }
+  const onDown = (e) => { if (e.target === overlay) closeRestartOverlay() }
+  cancel.addEventListener('click', () => closeRestartOverlay())
+  ok.addEventListener('click', () => {
+    closeRestartOverlay()
+    doRestart()
+  })
+  document.addEventListener('keydown', onKey)
+  overlay.addEventListener('pointerdown', onDown)
+  overlay._nioCleanup = () => {
+    document.removeEventListener('keydown', onKey)
+    overlay.removeEventListener('pointerdown', onDown)
+  }
+  document.body.appendChild(overlay)
+  restartOverlay = overlay
+  ok.focus()
+}
+
+/** 通知宿主端硬性重启，随后轮询探测服务恢复并自动刷新页面。 */
+async function doRestart() {
+  showRebootWait(false)
+  // 宿主端在响应 flush 后约 300ms 退出进程；响应可能被截断，
+  // 因此无论本次请求结果如何都进入轮询，直到服务恢复或超时。
+  try { await rpc('restart') } catch { /* 进程可能已退出，忽略 */ }
+  const started = Date.now()
+  const timer = window.setInterval(async () => {
+    let alive = false
+    try {
+      const res = await rpc('ping')
+      alive = res.ok
+    } catch { /* 服务尚未恢复 */ }
+    if (alive) {
+      window.clearInterval(timer)
+      window.location.reload()
+      return
+    }
+    if (Date.now() - started > 30000) {
+      window.clearInterval(timer)
+      showRebootWait(true)
+    }
+  }, 700)
+}
+
+/** 显示「正在重启 DeepSeek Harness…」全屏等待层；failed=true 时提示超时。 */
+function showRebootWait(failed) {
+  if (restartOverlay) closeRestartOverlay()
+  const overlay = document.createElement('div')
+  overlay.className = 'nio-reboot'
+  overlay.setAttribute('data-nio-reboot', '1')
+  if (!failed) {
+    const spinner = document.createElement('div')
+    spinner.className = 'nio-reboot-spinner'
+    const text = document.createElement('div')
+    text.className = 'nio-reboot-text'
+    text.textContent = '正在重启 DeepSeek Harness…'
+    overlay.appendChild(spinner)
+    overlay.appendChild(text)
+  } else {
+    const text = document.createElement('div')
+    text.className = 'nio-reboot-text'
+    text.textContent = '重启似乎未完成，请手动刷新页面。'
+    const retry = document.createElement('button')
+    retry.type = 'button'
+    retry.className = 'nio-confirm-btn nio-confirm-primary'
+    retry.textContent = '刷新页面'
+    retry.addEventListener('click', () => window.location.reload())
+    overlay.appendChild(text)
+    overlay.appendChild(retry)
+  }
+  document.body.appendChild(overlay)
+  restartOverlay = overlay
 }
 
 /* ------------------------------------------------------------------ */
 /* DOM 观察与扫描                                                       */
 /* ------------------------------------------------------------------ */
 
-/** 维护会话 header 工作区行（header 由 React 管理，每次 DOM 变化后补回）。 */
+/** 维护会话 header 工作区行、左下角重启按钮与工作区「⋯」菜单快捷按钮行（DOM 由 React 管理，每次变化后补回）。 */
 function scan() {
   try { ensureHeaderRow() } catch { /* header 尚未就绪时静默跳过 */ }
+  try { ensureRestartButton() } catch { /* 设置区尚未就绪时静默跳过 */ }
+  try { ensureWorkspaceMenuActions() } catch { /* 菜单尚未就绪时静默跳过 */ }
 }
 
 let scanScheduled = false
@@ -449,8 +875,24 @@ const CSS = `
 .nio-hfeed.err{color:var(--dsw-alias-state-error-primary)}
 /* 会话名（第二行）放大 */
 [class*="crumbCurrent"]{font-size:19px !important;line-height:27px !important;max-width:none !important;font-weight:600 !important}
+/* 工作区「⋯」菜单：快捷按钮行（挂在 list 末尾、viewport 滚动容器外） */
+[data-nio-mqa-menu]{overflow:visible !important}
+[data-nio-mqa-menu] > [role="presentation"]{max-height:none !important;overflow:visible !important}
+.nio-mqa{box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:6px 12px;border-top:1px solid var(--dsw-alias-border-l2);margin-top:2px}
+.nio-mqa-btn{position:relative;width:22px;height:22px;color:var(--dsw-alias-label-secondary);background:transparent;border:none;border-radius:5px;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.nio-mqa-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.nio-mqa-btn svg{display:block;width:14px;height:14px}
+.nio-mqa-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-mqa-btn:hover .nio-mqa-tip{opacity:1}
+.nio-mqa-feedback{font-size:11px;line-height:16px;color:var(--dsw-alias-state-success-primary);margin-left:2px;white-space:nowrap}
+.nio-mqa-feedback.err{color:var(--dsw-alias-state-error-primary)}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
+/* 顶部「重启以生效」横幅 */
+.nio-settings-banner{box-sizing:border-box;align-items:center;gap:12px;margin:12px 0 4px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 35%,transparent);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 10%,transparent);display:flex}
+.nio-settings-banner-text{flex:1;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px}
+.nio-settings-banner-btn{box-sizing:border-box;flex:none;height:30px;padding:0 14px;border:none;border-radius:8px;background:var(--dsw-alias-state-business-primary);color:#fff;font-size:13px;line-height:30px;font-family:inherit;cursor:pointer}
+.nio-settings-banner-btn:hover{opacity:.9}
 .nio-settings-group{display:flex;flex-direction:column}
 .nio-settings-row{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);align-items:center;gap:16px;padding:16px 0;display:flex}
 .nio-settings-group > .nio-settings-row{border-bottom:none}
@@ -471,6 +913,31 @@ const CSS = `
 .nio-settings-select:disabled{opacity:.5;cursor:default}
 .nio-settings-note{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px;padding:16px 0}
 .nio-settings-error{color:var(--dsw-alias-state-error-primary);font-size:13px;line-height:20px;padding:16px 0}
+/* 左下角重启按钮：absolute 定位在设置行右侧（定位上下文 = settingsArea） */
+[class*="settingsArea"].nio-rst-area{position:relative}
+/* 默认：灰色半透明；hover：变为红色（硬性重启警示色） */
+.nio-rst{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:28px;height:28px;color:color-mix(in srgb,var(--dsw-alias-label-secondary) 55%,transparent);background:transparent;border:none;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s ease,background .15s ease}
+.nio-rst:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-state-error-primary)}
+.nio-rst svg{display:block;width:15px;height:15px}
+.nio-rst-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-rst:hover .nio-rst-tip{opacity:1}
+/* 重启二次确认框 */
+.nio-confirm{position:fixed;inset:0;z-index:2147483003;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-mask-1);backdrop-filter:blur(2px)}
+.nio-confirm-dialog{box-sizing:border-box;width:min(420px,calc(100vw - 48px));background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l2);border-radius:16px;box-shadow:var(--dsw-shadow-lv3,0 10px 32px rgba(0,0,0,.35));padding:20px;display:flex;flex-direction:column;gap:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-confirm-title{color:var(--dsw-alias-label-primary);font-size:16px;font-weight:600;line-height:24px}
+.nio-confirm-desc{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
+.nio-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.nio-confirm-btn{box-sizing:border-box;height:32px;padding:0 16px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font-size:13px;line-height:30px;font-family:inherit;cursor:pointer}
+.nio-confirm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.nio-confirm-danger{background:var(--dsw-alias-state-error-primary);border-color:transparent;color:#fff}
+.nio-confirm-danger:hover{background:var(--dsw-alias-state-error-primary);opacity:.9}
+.nio-confirm-primary{background:var(--dsw-alias-state-business-primary);border-color:transparent;color:#fff}
+.nio-confirm-primary:hover{background:var(--dsw-alias-state-business-primary);opacity:.9}
+/* 重启等待层 */
+.nio-reboot{position:fixed;inset:0;z-index:2147483003;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--dsw-alias-bg-mask-1);backdrop-filter:blur(2px);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-reboot-spinner{width:26px;height:26px;border:2px solid var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-state-business-primary);border-radius:50%;animation:nio-reboot-spin .8s linear infinite}
+@keyframes nio-reboot-spin{to{transform:rotate(360deg)}}
+.nio-reboot-text{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
 `
 
 /* ------------------------------------------------------------------ */
@@ -479,8 +946,9 @@ const CSS = `
 
 /**
  * 声明本客户端插件依赖的注入服务名：无。
- * `sessions` / `slots` 均为可选读取（ctx.get），不声明硬依赖：
+ * `sessions` / `workspaces` / `slots` 均为可选读取（ctx.get），不声明硬依赖：
  * header 注入在数据就绪前静默跳过，MutationObserver 就绪后自动补回；
+ * 工作区菜单注入通过 workspaces service 解析 title→path；
  * 设置面板通过 slots.inject 等待 settings.section 声明出现后注册。
  */
 export const inject = []
@@ -502,7 +970,16 @@ export function apply(ctx) {
     const observer = new MutationObserver(scheduleScan)
     observer.observe(document.body, { childList: true, subtree: true })
     scan()
-    return () => observer.disconnect()
+    // 兜底轮询：设置区可能晚于首帧渲染，且 MutationObserver 在个别
+    // 时序下可能漏触发；注入成功前每 1s 重试，最多 20s。
+    let tries = 0
+    const timer = window.setInterval(() => {
+      tries += 1
+      if (tries > 20) { window.clearInterval(timer); return }
+      if (document.querySelector('[data-nio-rst]')) { window.clearInterval(timer); return }
+      scan()
+    }, 1000)
+    return () => { observer.disconnect(); window.clearInterval(timer) }
   }, 'dsh-niao-quick-open: observer')
 
   ctx.effect(() => {
