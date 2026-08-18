@@ -837,48 +837,35 @@ function setAttr(el, name, value) {
 }
 
 /**
- * 阻断单列表（flat）行 hover 悬浮卡片。
+ * 阻断单列表（flat）会话行的 hover 悬浮卡片。
  *
- * 原生会话行的 HoverCard 把 React 的 onPointerEnter 直接绑定在 root span
- * （会话行的父元素）上。pointerenter 是"边界事件"：既不冒泡也不捕获
- * 传播——传播路径只含目标元素本身，浏览器直接把事件派发到 root span，
- * 因此在 flatList 容器上做捕获拦截永远收不到事件（前两版无效的原因）。
+ * 前几版无效的根因（React 18 事件系统）：
+ *  - React 的 onPointerEnter 并非绑定原生 pointerenter——React 把
+ *    pointerenter/pointerleave 归为「模拟事件」，实际在 root 容器上
+ *    委托监听 pointerover/pointerout，用 relatedTarget 模拟 enter/leave；
+ *  - pointerenter 是边界事件（传播路径只含目标元素），在任何祖先上
+ *    监听 pointerenter 都收不到事件；监听 pointerover 又晚于 React 的
+ *    root 捕获监听（root 在传播链上先于列表容器）。
  *
- * 正确做法：在 root span 本身上注册【捕获阶段】pointerenter 监听器。
- * DOM 派发时目标元素上的捕获监听器（capture=true）总是先于目标阶段
- * 监听器（capture=false，React 绑定在此）执行，stopImmediatePropagation
- * 在此拦截后 React 的 onPointerEnter 不执行 → 卡片不再打开。
- * 仅影响单列表行；点击 / 拖拽 / CSS hover 不受影响。幂等。
+ * 正确做法：在 window 上注册【捕获阶段】pointerover 监听。捕获传播链
+ * window → document → … → root(React 在此) → … → flat 行，window 最先
+ * 执行；当目标是单列表内的会话行时 stopImmediatePropagation，React 的
+ * root 监听器收不到 pointerover → onPointerEnter 不触发 → 卡片不打开。
+ * 点击 / 拖拽 / CSS hover 不受影响（它们不依赖 pointerover 进入行）。
  */
-function blockFlatRowHoverCard(row) {
-  if (row.dataset.nioFlatPvh === '1') return
-  row.dataset.nioFlatPvh = '1'
-  // HoverCard root span = 会话行的直接父元素（包裹行 + 门户卡片）。
-  const root = row.parentElement
-  if (root && root !== row) {
-    root.addEventListener('pointerenter', (e) => e.stopImmediatePropagation(), true)
-  }
-}
-
-/**
- * 兜底清理：flat 模式下，若某个 HoverCard 卡片仍被打开（portal 到 body），
- * 立即移除。卡片特征：包含会话 hover 内容（hoverContent 类）、role=button
- * （copyable 会话卡）、直接挂载在 body 下。幂等。
- */
-function sweepFlatHoverCards() {
-  const flat = document.querySelector('[class*="flatList"]')
-  if (!flat) return
-  const contents = document.querySelectorAll('[class*="hoverContent"]')
-  for (const content of contents) {
-    let el = content
-    while (el && el !== document.body) {
-      if (el.parentElement === document.body && el.getAttribute('role') === 'button') {
-        el.remove()
-        break
-      }
-      el = el.parentElement
-    }
-  }
+let flatPointerGuardInstalled = false
+function installFlatPointerGuard() {
+  if (flatPointerGuardInstalled) return
+  flatPointerGuardInstalled = true
+  window.addEventListener('pointerover', (e) => {
+    const target = e.target
+    if (!target || typeof target.closest !== 'function') return
+    // 仅拦截「进入单列表会话行」的 pointerover：行在 flatList 内才拦，
+    // 分组 / 搜索模式下的会话行（不在 flatList 内）保持原生 hover 卡片。
+    if (!target.closest('[class*="sessionRow"]')) return
+    if (!target.closest('[class*="flatList"]')) return
+    e.stopImmediatePropagation()
+  }, true)
 }
 
 /**
@@ -893,7 +880,6 @@ function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
   row.classList.add('nio-flat-row')
   const kids = markFlatRowChildren(row)
-  blockFlatRowHoverCard(row)
 
   // 第一行前置图标判定：
   //  - has-status：原生状态图标（运行/等待/完成提醒的状态点，slot 内有子元素）；
@@ -1375,7 +1361,6 @@ function scan() {
   try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
-  try { sweepFlatHoverCards() } catch { /* 卡片清理失败时忽略 */ }
 }
 
 let scanScheduled = false
@@ -1548,6 +1533,8 @@ export function apply(ctx) {
   ctx.effect(() => {
     const observer = new MutationObserver(scheduleScan)
     observer.observe(document.body, { childList: true, subtree: true })
+    // 安装单列表 hover 卡片拦截（window 捕获 pointerover，全局一次性）。
+    installFlatPointerGuard()
     scan()
     // 兜底轮询：设置区可能晚于首帧渲染，且 MutationObserver 在个别
     // 时序下可能漏触发；注入成功前每 1s 重试，最多 20s。
