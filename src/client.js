@@ -773,6 +773,8 @@ const LAST_MSG_TTL = 60000
 const PREVIEW_MAX_LEN = 300
 /** 等待拉取的最后用户消息 sessionId 集合（合并并发 scan 的重复请求）。 */
 const lastMsgPending = new Set()
+/** 已在途请求中的 sessionId 集合（请求返回前不重复加入队列，防请求循环）。 */
+const lastMsgInflight = new Set()
 /** 是否已有一轮批量请求在途。 */
 let lastMsgFetching = false
 
@@ -824,6 +826,16 @@ function markFlatRowChildren(row) {
   return kids
 }
 
+/** 幂等写入 textContent：值相同不写（避免无意义的 DOM 变化触发 MutationObserver）。 */
+function setText(el, text) {
+  if (el && el.textContent !== text) el.textContent = text
+}
+
+/** 幂等写入属性：值相同不写。 */
+function setAttr(el, name, value) {
+  if (el && el.getAttribute(name) !== value) el.setAttribute(name, value)
+}
+
 /**
  * 阻断 flat 行的 hover 悬浮卡片：原生会话行的 HoverCard 通过 React 在
  * root 容器上委托 pointerover 来模拟 pointerenter，行内（冒泡阶段）阻断
@@ -838,17 +850,26 @@ function blockFlatRowHoverCard(row) {
 
 /**
  * 渲染（或更新）单个 flat 会话行为三行布局：
- * 第一行 chip（工作区文件夹名）+ 行尾最后用户消息时间；
+ * 第一行：原生状态图标（有则显示）+ 工作区 chip + 行尾最后用户消息时间；
  * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
  * info 为 null 时仅布局 + chip（预览/时间降级为原生内容）。
  * wsMap 为 sessionId → 工作区标题 映射（调用方构建一次，避免每行重复构建）。
- * 幂等：React 重渲染重建行后重新注入。
+ * 幂等：所有写入先比较再赋值，注入完成后不再产生 DOM 变化。
  */
 function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
   row.classList.add('nio-flat-row')
-  markFlatRowChildren(row)
+  const kids = markFlatRowChildren(row)
   blockFlatRowHoverCard(row)
+
+  // 第一行前置图标判定：
+  //  - has-status：原生状态图标（运行/等待/完成提醒的状态点，slot 内有子元素）；
+  //  - has-dot：会话待办圆点（空闲会话被标记时注入在行首）。
+  // 有其一则图标占第一列、chip 后移一列；都没有则 chip 从第一列开始（不占位）。
+  const hasStatus = !!(kids.slot && kids.slot.children.length > 0)
+  const hasDot = !!row.querySelector('[data-nio-sdone]')
+  row.classList.toggle('nio-flat-has-status', hasStatus)
+  row.classList.toggle('nio-flat-has-dot', hasDot)
 
   // 第一行左侧：工作区 chip（复用 nio-hchip 标签样式）
   let chip = row.querySelector('[data-nio-fchip]')
@@ -856,11 +877,11 @@ function renderFlatRow(row, sessionId, info, wsMap) {
     chip = document.createElement('span')
     chip.className = 'nio-hchip nio-fchip'
     chip.setAttribute('data-nio-fchip', '1')
-    row.insertBefore(chip, row.children[1] || null)
+    row.insertBefore(chip, kids.title || row.children[1] || null)
   }
   const wsTitle = (wsMap && wsMap.get(sessionId)) || ''
-  chip.textContent = wsTitle || '未分组'
-  chip.title = wsTitle
+  setText(chip, wsTitle || '未分组')
+  setAttr(chip, 'title', wsTitle)
 
   // 第三行：最后用户消息预览（单行省略）
   let preview = row.querySelector('[data-nio-fprev]')
@@ -871,17 +892,17 @@ function renderFlatRow(row, sessionId, info, wsMap) {
     row.appendChild(preview)
   }
   if (info) {
-    preview.textContent = normalizePreviewText(info.text)
-    preview.title = String(info.text || '')
+    setText(preview, normalizePreviewText(info.text))
+    setAttr(preview, 'title', String(info.text || ''))
     // 第一行右侧：复用原生 time 元素显示最后用户消息的相对时间
     // （time 为 0 表示该会话无对话记录，保留原生 updatedAt 时间不覆盖）
     if (info.time > 0) {
       const timeEl = row.querySelector('[class*="time"]')
-      if (timeEl) timeEl.textContent = relativeTimeLabel(info.time, Date.now())
+      if (timeEl) setText(timeEl, relativeTimeLabel(info.time, Date.now()))
     }
   } else {
-    preview.textContent = ''
-    preview.title = ''
+    setText(preview, '')
+    setAttr(preview, 'title', '')
   }
 }
 
@@ -891,6 +912,8 @@ async function fetchLastMessages() {
   lastMsgFetching = true
   const ids = [...lastMsgPending].slice(0, 100)
   lastMsgPending.clear()
+  if (ids.length === 0) { lastMsgFetching = false; return }
+  for (const id of ids) lastMsgInflight.add(id)
   try {
     const res = await rpc('list-last-user-messages', { sessionIds: ids })
     const now = Date.now()
@@ -920,14 +943,23 @@ async function fetchLastMessages() {
         if (cached) renderFlatRow(row, sessionId, cached, wsMap)
       }
     }
-  } catch { /* 请求失败：下次 scan 重试 */ }
-  lastMsgFetching = false
-  if (lastMsgPending.size > 0) fetchLastMessages()
+  } catch {
+    // 请求失败：写入空缓存（复用 TTL），避免失败后每帧重复请求。
+    const now = Date.now()
+    for (const id of ids) {
+      if (!lastMsgCache.has(id)) lastMsgCache.set(id, { text: '', time: 0, at: now })
+    }
+  } finally {
+    for (const id of ids) lastMsgInflight.delete(id)
+    lastMsgFetching = false
+    if (lastMsgPending.size > 0) fetchLastMessages()
+  }
 }
 
 /**
  * 维护单列表（flat）模式下的会话行三行布局。
  * 仅当视图切到「单列表」（flatList 容器存在）时生效；分组/搜索模式下不注入。
+ * 在途请求（lastMsgInflight）的会话不重复加入队列，避免请求返回后立即重发形成循环。
  */
 function ensureFlatEnhance() {
   const list = document.querySelector('[class*="flatList"]')
@@ -945,11 +977,14 @@ function ensureFlatEnhance() {
     const s = stateById.get(sessionId)
     if (s && s.blank) continue
     const cached = lastMsgCache.get(sessionId)
-    if (!cached || now - cached.at > LAST_MSG_TTL) {
+    if (cached && now - cached.at <= LAST_MSG_TTL) {
+      renderFlatRow(row, sessionId, cached, wsMap)
+    } else if (!lastMsgInflight.has(sessionId)) {
       lastMsgPending.add(sessionId)
       renderFlatRow(row, sessionId, null, wsMap)
     } else {
-      renderFlatRow(row, sessionId, cached, wsMap)
+      // 在途请求尚未返回：先按无缓存渲染布局，返回后再补内容。
+      renderFlatRow(row, sessionId, null, wsMap)
     }
   }
   if (lastMsgPending.size > 0) fetchLastMessages()
@@ -1363,15 +1398,30 @@ const CSS = `
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 .nio-sdone-tip{position:absolute;bottom:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
-/* 单列表（flat）会话行：三行布局（第一行 chip+时间 / 第二行标题 / 第三行预览） */
-.nio-flat-row{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:18px minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
-.nio-flat-slot{grid-column:1;grid-row:1 / 4;align-self:center;justify-self:center;min-width:0}
-.nio-flat-chip{grid-column:2;grid-row:1;align-self:center;justify-self:start;min-width:0}
+/* 单列表（flat）会话行：三行布局（第一行 状态图标+chip+时间 / 第二行标题 / 第三行预览） */
+.nio-flat-row{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
+/* 无前置图标（默认）：chip 跨前两列、time/actions 在最右列 */
+.nio-flat-slot{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
+.nio-flat-chip{grid-column:1 / 3;grid-row:1;align-self:center;justify-self:start;min-width:0}
 .nio-fchip{max-width:180px;font-size:11px;line-height:16px}
 .nio-flat-time{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
-.nio-flat-title{grid-column:2;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
+.nio-flat-title{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
 .nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end}
-.nio-fprev{grid-column:2 / 4;grid-row:3;align-self:start;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.nio-fprev{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+/* 有原生状态图标（运行/等待/完成提醒）：图标占第一列，chip/标题后移一列 */
+.nio-flat-has-status .nio-flat-slot{grid-column:1;grid-row:1}
+.nio-flat-has-status .nio-flat-chip{grid-column:2}
+.nio-flat-has-status .nio-flat-title{grid-column:2}
+.nio-flat-has-status .nio-flat-time{grid-column:3}
+.nio-flat-has-status .nio-flat-actions{grid-column:3}
+.nio-flat-has-status .nio-fprev{grid-column:2 / 4}
+/* 有待办圆点（空闲会话被标记）：圆点占第一列，其余后移（与原生图标相同布局） */
+.nio-flat-has-dot .nio-sdone{grid-column:1;grid-row:1;align-self:center;justify-self:center}
+.nio-flat-has-dot .nio-flat-chip{grid-column:2}
+.nio-flat-has-dot .nio-flat-title{grid-column:2}
+.nio-flat-has-dot .nio-flat-time{grid-column:3}
+.nio-flat-has-dot .nio-flat-actions{grid-column:3}
+.nio-flat-has-dot .nio-fprev{grid-column:2 / 4}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */
