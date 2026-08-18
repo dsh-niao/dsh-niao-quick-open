@@ -837,15 +837,23 @@ function setAttr(el, name, value) {
 }
 
 /**
- * 阻断 flat 行的 hover 悬浮卡片：原生会话行的 HoverCard 通过 React 在
- * root 容器上委托 pointerover 来模拟 pointerenter，行内（冒泡阶段）阻断
- * pointerover 传播后，React 收不到进入事件 → 卡片不再打开。
- * 仅影响单列表行；点击 / 拖拽 / CSS hover 均不受影响。幂等。
+ * 阻断单列表（flat）行 hover 悬浮卡片。
+ *
+ * 原生会话行的 HoverCard 通过 React 的 onPointerEnter 打开卡片，而 React
+ * 把 pointerenter 归为 nonDelegatedEvents：直接在 HoverCard root span 元素上
+ * 绑定原生监听器（不走 root 委托），因此行内 stopPropagation pointerover
+ * 无法阻止（之前方案无效的原因）。
+ *
+ * 改为在 flat 列表容器上注册【捕获阶段】pointerenter 拦截：事件从 window
+ * 捕获到 root span（目标）的路径上必然先经过容器，stopImmediatePropagation
+ * 在此拦截后 root span 收不到事件，React 的 onPointerEnter 不执行 → 卡片
+ * 不再打开。仅影响 flat 列表容器内的行；点击 / 拖拽 / CSS hover 不受影响。
+ * 幂等：容器被 React 重建后（模式切换）dataset 丢失，重新注册。
  */
-function blockFlatRowHoverCard(row) {
-  if (row.dataset.nioFlatPvh === '1') return
-  row.dataset.nioFlatPvh = '1'
-  row.addEventListener('pointerover', (e) => e.stopPropagation())
+function blockFlatListHoverCards(list) {
+  if (list.dataset.nioFlatPvh === '1') return
+  list.dataset.nioFlatPvh = '1'
+  list.addEventListener('pointerenter', (e) => e.stopImmediatePropagation(), true)
 }
 
 /**
@@ -860,7 +868,6 @@ function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
   row.classList.add('nio-flat-row')
   const kids = markFlatRowChildren(row)
-  blockFlatRowHoverCard(row)
 
   // 第一行前置图标判定：
   //  - has-status：原生状态图标（运行/等待/完成提醒的状态点，slot 内有子元素）；
@@ -964,6 +971,8 @@ async function fetchLastMessages() {
 function ensureFlatEnhance() {
   const list = document.querySelector('[class*="flatList"]')
   if (!list) return
+  // 容器级 hover 卡片拦截（捕获阶段，见 blockFlatListHoverCards 注释）。
+  blockFlatListHoverCards(list)
   const rows = Array.from(list.querySelectorAll('[class*="sessionRow"]'))
   if (rows.length === 0) return
   const idByRow = mapSessionRowsToIds(rows)
