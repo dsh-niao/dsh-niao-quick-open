@@ -46,7 +46,8 @@ export const CSS = `
 .nio-sdone:hover .nio-sdone-dot{opacity:1 !important}
 .nio-sdone-marked .nio-sdone-dot{opacity:1 !important;color:var(--dsw-alias-state-success-primary) !important}
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
-.nio-sdone-tip{position:absolute;bottom:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+/* 待办圆点悬浮提示：显示在圆点下方、左对齐（bottom-left） */
+.nio-sdone-tip{position:absolute;top:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
 /* 单列表 hover 悬浮卡片兜底隐藏（只加类不删节点，React 卸载不受影响） */
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
@@ -58,7 +59,7 @@ export const CSS = `
    导致 React 协调崩溃（列表卸载），必须保留为会话行直接子元素、以 grid
    定位；我们注入的元素（圆点/工作区名/预览）放在行容器
    nio-flat-line1 / nio-flat-line3 中。 */
-[class*="flatList"] [class*="sessionRow"]{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
+[class*="flatList"] [class*="sessionRow"]{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
 /* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
 [class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
@@ -83,8 +84,9 @@ export const CSS = `
 /* —— 第三行（grid row 3） —— */
 /* 第三行容器（我们的：最后用户消息预览，全宽） */
 [class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line3]{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0}
-/* 预览文本：盒子高度与行高固定 1.2em（内容变化不改变行高，避免抖动） */
-[class*="flatList"] [data-nio-flat-line3] [data-nio-fprev]{display:block;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+/* 预览文本：盒子高度与行高固定 1.2em（内容变化不改变行高，避免抖动）。
+   cursor 继承行的 pointer（不在预览上设 default，保证整卡小手） */
+[class*="flatList"] [data-nio-flat-line3] [data-nio-fprev]{display:block;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */
