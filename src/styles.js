@@ -39,13 +39,13 @@ export const CSS = `
 /* 会话待办标记圆点：完整复刻原生 _dot_10orb_3（span 透明 + :before 晕圈 + :after 内芯，currentColor 着色） */
 .nio-sdone{position:relative;box-sizing:border-box;flex:none;width:16px;height:20px;border:none;background:transparent;padding:0;margin:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dsw-alias-label-tertiary)}
 /* 内层圆点：与原生规则一致（position:relative + :before/:after 双层圆），仅颜色不同。
-   默认常显（opacity:.8 浅灰）：空闲会话的待办圆点无需 hover 即显示；
-   hover 会话卡片/圆点时加深到 1；已标记为绿色常显。 */
-.nio-sdone-dot{position:relative;display:inline-block;flex:none;width:10px;height:10px;box-sizing:border-box;opacity:.8 !important;transition:opacity .12s ease,color .15s ease !important;color:var(--dsw-alias-label-tertiary) !important}
+   默认常显（opacity:.6 浅灰）：空闲会话的待办圆点无需 hover 即显示；
+   hover 会话卡片/圆点时加深到 .8；已标记为绿色常显。 */
+.nio-sdone-dot{position:relative;display:inline-block;flex:none;width:10px;height:10px;box-sizing:border-box;opacity:.6 !important;transition:opacity .12s ease,color .15s ease !important;color:var(--dsw-alias-label-tertiary) !important}
 .nio-sdone-dot:before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;border-radius:50%;background:currentColor;opacity:.1}
 .nio-sdone-dot:after{content:"";position:absolute;top:20%;right:20%;bottom:20%;left:20%;border-radius:50%;background:currentColor}
-[class*="sessionRow"]:hover .nio-sdone .nio-sdone-dot{opacity:1 !important}
-.nio-sdone:hover .nio-sdone-dot{opacity:1 !important}
+[class*="sessionRow"]:hover .nio-sdone .nio-sdone-dot{opacity:.8 !important}
+.nio-sdone:hover .nio-sdone-dot{opacity:.8 !important}
 .nio-sdone-marked .nio-sdone-dot{opacity:1 !important;color:var(--dsw-alias-state-success-primary) !important}
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 /* 待办圆点悬浮提示：显示在圆点下方、左对齐（bottom-left） */
