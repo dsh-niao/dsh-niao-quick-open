@@ -31,6 +31,12 @@ const lastMsgPending = new Set()
 const lastMsgInflight = new Set()
 /** 是否已有一轮批量请求在途。 */
 let lastMsgFetching = false
+/** 每个会话最近观察到的 updatedAt（检测会话活动 → 立即刷新预览）。 */
+const lastSeenUpdatedAt = new Map()
+/** 每个会话最近一次触发预览刷新的时间（节流：2s 内不重复刷新）。 */
+const lastPromptRefreshAt = new Map()
+/** 会话活动导致预览刷新的节流窗口（毫秒）。 */
+const PROMPT_REFRESH_DEBOUNCE = 2000
 
 /** sessionId → 工作区标题 映射（单列表行第一行 chip 用）。 */
 function workspaceTitleBySession() {
@@ -346,6 +352,21 @@ export function ensureFlatEnhance() {
     // 新会话占位行（blank）没有对话内容，不改造。
     const s = stateById.get(sessionId)
     if (s && s.blank) continue
+    // 会话活动检测：updatedAt 变化 → 立即失效预览缓存并重新拉取
+    // （用户发出内容后无需等待执行完成，秒级更新最后一句与时间）。
+    // 节流 2s：运行中会话 updatedAt 可能频繁变化（流式输出），避免连续请求。
+    const updatedAt = s ? (s.updatedAt || 0) : 0
+    if (updatedAt !== lastSeenUpdatedAt.get(sessionId)) {
+      lastSeenUpdatedAt.set(sessionId, updatedAt)
+      const nowRefresh = Date.now()
+      const lastRefresh = lastPromptRefreshAt.get(sessionId) || 0
+      if (updatedAt !== 0 && nowRefresh - lastRefresh >= PROMPT_REFRESH_DEBOUNCE && !lastMsgInflight.has(sessionId)) {
+        lastPromptRefreshAt.set(sessionId, nowRefresh)
+        const cached = lastMsgCache.get(sessionId)
+        if (cached) cached.at = 0 // 保留旧文本继续显示（不闪空），标记过期触发后台刷新
+        else lastMsgPending.add(sessionId)
+      }
+    }
     const cached = lastMsgCache.get(sessionId)
     if (cached) {
       // stale-while-revalidate：始终用缓存渲染（即使过期），预览永不清空；

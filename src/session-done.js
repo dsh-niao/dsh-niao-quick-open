@@ -62,6 +62,7 @@ export function sessionSnapshotRows() {
       out.push({
         id,
         displayTitle: typeof s.displayTitle === 'string' ? s.displayTitle : '',
+        updatedAt: typeof s.updatedAt === 'number' ? s.updatedAt : 0,
         running: !!s.running,
         pending: !!s.pendingInteraction,
         completed: !!s.completed,
