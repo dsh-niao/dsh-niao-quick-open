@@ -66,7 +66,8 @@ export const CSS = `
 .nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
 .nio-flat-row:hover .nio-flat-actions{opacity:1;visibility:visible;pointer-events:auto}
 .nio-flat-row:hover .nio-flat-time{display:inline-flex !important}
-.nio-fprev{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+/* 第三行预览：盒子高度与行高固定 1.2em（内容从无到有不改变行高，避免抖动） */
+.nio-fprev{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
 /* 有原生状态图标（运行/等待/完成提醒）：图标占第一列，chip/标题后移一列 */
 .nio-flat-has-status .nio-flat-slot{grid-column:1;grid-row:1}
 .nio-flat-has-status .nio-flat-chip{grid-column:2}
