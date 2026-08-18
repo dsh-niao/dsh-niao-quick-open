@@ -51,6 +51,8 @@ export const CSS = `
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
 /* 单列表 hover 悬浮卡片兜底隐藏（只加类不删节点，React 卸载不受影响） */
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
+/* 双击重命名：菜单在绘制前被隐藏（配合 MutationObserver 同步处理，杜绝闪现） */
+.nio-hide-menu{display:none !important}
 /* 单列表（flat）会话行：三行结构。
    全部规则以 [class*="flatList"][data-nio-flat-style] 为前缀：容器仅在
    「单列表增强样式」开关开启时带 data-nio-flat-style 标记，关闭后所有

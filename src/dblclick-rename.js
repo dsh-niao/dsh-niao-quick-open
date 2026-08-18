@@ -1,23 +1,25 @@
 /**
  * dsh-niao-quick-open — 浏览器端：会话双击重命名。
  *
- * 双击侧边栏会话列表中的「会话名称」，或双击当前激活会话内容区顶部的
- * 会话名称，直接弹出原生「重命名会话」编辑弹窗（等价于点击会话悬浮菜单
- * 中的「重命名」）。
+ * 双击侧边栏会话列表中的「会话名称」，直接弹出原生「重命名会话」编辑
+ * 弹窗（等价于点击会话悬浮菜单中的「重命名」），且不经过「先弹出悬浮
+ * 菜单」的中间步骤。
  *
- * 实现要点（两步合成点击，复用原生路径）：
- *  1. 「⋯ 按钮」（rowActions 内 iconButton）的 onClick 只是 setMenuOpen
- *     （打开菜单）；onRename(sessionId, currentTitle) 只在菜单项
- *     onSelect('rename') 时调用。因此单点 ⋯ 按钮只会打开菜单。
- *  2. 本模块分两步派发合成 click：先点 ⋯ 按钮打开菜单，等 React 渲染出
- *     portal 菜单后，找到「重命名」菜单项再点一次 —— 与用户手动
- *     「点 ⋯ → 点重命名」完全同一条路径，弹窗自然弹出（带出当前标题、
- *     Enter 确认、Escape 取消，校验/错误处理沿用原生）。
- *  3. 原生 dispatchEvent（isTrusted=false）仍会被 React 的合成监听接收
- *     （React 根监听在 window 捕获，非 trusted 事件同样可达）。
+ * 为什么不能直接调用弹窗方法：onRename（setSessionRenameTarget）是
+ * WorkspaceBrowser 组件内的闭包，外部拿不到引用；它只在 ⋯ 菜单项的
+ * onSelect('rename') 时被调用。因此必须通过 React 事件链触发。
  *
- * 会话行双击仅在「单列表增强样式」开启且位于 flatList 内拦截；
- * header 面包屑双击仅对当前激活会话生效；其余场景保留原生行为。
+ * 如何省去菜单闪现：点 ⋯ 按钮（setMenuOpen(true)）后，用一个
+ * MutationObserver 在【菜单节点插入 body 的 microtask】中同步执行：
+ *  1. 给菜单加 nio-hide-menu（display:none）——DOM 已插入但浏览器尚未
+ *     绘制，菜单不可见；
+ *  2. 点击「重命名 / Rename」菜单项 → onSelect('rename') → onRename →
+ *     setMenuOpen(false) + setSessionRenameTarget 同批 commit：菜单在
+ *     隐藏状态下被卸载、重命名弹窗直接出现。
+ * 视觉结果：双击标题 → 直接弹出重命名弹窗，无菜单闪现。
+ *
+ * 仅当「单列表增强样式」开启且位于 flatList 内拦截会话行；
+ * 分组/搜索模式的会话行双击不拦截（保留原生行为）。
  *
  * @module dsh-niao-quick-open/client/dblclick-rename
  */
@@ -46,43 +48,53 @@ function syntheticClick(el) {
 }
 
 /**
- * 触发某会话行的「重命名」：先点 ⋯ 按钮打开菜单，再等菜单渲染后点
- * 「重命名」菜单项（两步与手动操作一致）。菜单项出现后点击即弹窗。
+ * 触发某会话行的「重命名」，菜单在可见前被隐藏：
+ * 点 ⋯ 按钮打开菜单 → MutationObserver 在菜单插入的 microtask 中
+ * 隐藏菜单并点击「重命名」项 → 弹窗直接弹出（无菜单闪现）。
  */
 function triggerRowRename(row) {
   if (!row || !row.isConnected) return
   const btn = row.querySelector('[class*="rowActions"] [class*="iconButton"]')
   if (!btn) return
-  syntheticClick(btn) // 打开 ⋯ 菜单
+  let done = false
+  const finish = (menu) => {
+    if (done) return
+    const item = findRenameMenuItem()
+    if (!item) return
+    done = true
+    if (observer) observer.disconnect()
+    if (menu && menu.isConnected) menu.classList.add('nio-hide-menu') // 隐藏（绘制前）
+    syntheticClick(item) // 点「重命名」→ onSelect('rename') → onRename → 弹窗
+    // 兜底：若菜单未被 React 卸载，延迟移除隐藏类（避免永久隐藏残留）。
+    window.setTimeout(() => { if (menu && menu.isConnected) menu.classList.remove('nio-hide-menu') }, 1000)
+  }
+  let observer = null
+  try {
+    observer = new MutationObserver(() => {
+      const item = findRenameMenuItem()
+      if (item) finish(item.closest('[role="menu"]'))
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+  } catch { observer = null }
+  syntheticClick(btn) // 打开 ⋯ 菜单（setMenuOpen(true)）
+  // 菜单可能已在 DOM（复用/未卸载）：立即尝试一次。
+  const existingItem = findRenameMenuItem()
+  if (existingItem) finish(existingItem.closest('[role="menu"]'))
+  // 兜底轮询：2s 超时，避免 observer 漏触发时永久等待。
   let tries = 0
   const timer = window.setInterval(() => {
     tries += 1
-    if (tries > 40) { window.clearInterval(timer); return } // 2s 超时
+    if (done || tries > 40) { window.clearInterval(timer); if (observer) observer.disconnect(); return }
     const item = findRenameMenuItem()
-    if (!item) return
-    window.clearInterval(timer)
-    syntheticClick(item) // 点「重命名」→ onSelect('rename') → onRename → 弹窗
+    if (item) finish(item.closest('[role="menu"]'))
   }, 50)
 }
 
-/** 全局双击监听：命中会话名称（列表行 / header 面包屑）则触发重命名。 */
+/** 全局双击监听：命中会话列表行内的会话名称则触发重命名。 */
 function onDblClick(e) {
   const target = e.target
   if (!target || typeof target.closest !== 'function') return
-
-  // ① header 面包屑：当前激活会话内容区顶部的会话名称（crumbCurrent）。
-  // 必须优先判断——crumbCurrent 类名不含 "title"，先查 title 会漏掉。
-  const crumb = target.closest('[class*="crumbCurrent"]')
-  if (crumb) {
-    e.preventDefault()
-    e.stopPropagation()
-    // 当前会话行（flat 列表内激活行）的 ⋯ 按钮 → 重命名。
-    const currentRow = document.querySelector('[class*="flatList"] [class*="sessionRow"][aria-selected="true"]')
-    if (currentRow) triggerRowRename(currentRow)
-    return
-  }
-
-  // ② 会话列表行：双击的元素必须在「会话名称」内（title 元素或其子节点）。
+  // 双击的元素必须在「会话名称」内（title 元素或其子节点）。
   const title = target.closest('[class*="title"]')
   if (!title) return
   const row = title.closest('[class*="sessionRow"]')
