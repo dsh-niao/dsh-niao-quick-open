@@ -98,6 +98,11 @@ export const CSS = `
 [class*="flatList"] [class*="sessionRow"] > [class*="rowActions"]{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
 [class*="flatList"] [class*="sessionRow"]:hover > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
 [class*="flatList"] [class*="sessionRow"]:hover > [class*="time"]{display:inline-flex !important}
+/* 菜单打开（menuOpen 类，点击三个点后）时：即使鼠标移开行，三个点与
+   时间也保持显示 —— 覆盖无条件的 opacity:0 隐藏（rowActions）与原生
+   menuOpen 隐藏时间（sessionRow.menuOpen .time{display:none}）。 */
+[class*="flatList"] [class*="sessionRow"][class*="menuOpen"] > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
+[class*="flatList"] [class*="sessionRow"][class*="menuOpen"] > [class*="time"]{display:inline-flex !important}
 /* —— 第三行（grid row 3） —— */
 /* 第三行容器（我们的：最后用户消息预览，全宽） */
 [class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line3]{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0}
