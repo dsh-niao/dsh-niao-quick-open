@@ -50,38 +50,29 @@ export const CSS = `
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
 /* 单列表 hover 悬浮卡片兜底隐藏（只加类不删节点，React 卸载不受影响） */
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
-/* 单列表（flat）会话行：三行布局（第一行 状态图标+chip+时间 / 第二行标题 / 第三行预览） */
-.nio-flat-row{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
-/* 无前置图标（默认）：chip 跨前两列、time/actions 在最右列 */
-.nio-flat-slot{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
-.nio-flat-chip{grid-column:1 / 3;grid-row:1;align-self:center;justify-self:start;min-width:0}
-.nio-fchip{box-sizing:border-box;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 选中会话时工作区名称变亮色（aria-selected 原生属性，无 hash 类名依赖） */
-.nio-flat-row[aria-selected="true"] .nio-fchip{color:var(--dsw-alias-state-business-primary)}
-.nio-flat-time{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
-.nio-flat-title{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
-/* ⋯菜单固定于会话名称行（第二行）最右列：始终占位（覆盖原生 display:none），
-   默认隐藏（opacity/visibility，不改变 grid 布局），hover 会话横幅时显示。
-   仅影响第二行——第一行时间不再被原生 hover 规则隐藏。 */
-.nio-flat-actions{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
-.nio-flat-row:hover .nio-flat-actions{opacity:1;visibility:visible;pointer-events:auto}
-.nio-flat-row:hover .nio-flat-time{display:inline-flex !important}
-/* 第三行预览：盒子高度与行高固定 1.2em（内容从无到有不改变行高，避免抖动） */
-.nio-fprev{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
-/* 有原生状态图标（运行/等待/完成提醒）：图标占第一列，chip/标题后移一列 */
-.nio-flat-has-status .nio-flat-slot{grid-column:1;grid-row:1}
-.nio-flat-has-status .nio-flat-chip{grid-column:2}
-.nio-flat-has-status .nio-flat-title{grid-column:2}
-.nio-flat-has-status .nio-flat-time{grid-column:3}
-.nio-flat-has-status .nio-flat-actions{grid-column:3}
-.nio-flat-has-status .nio-fprev{grid-column:2 / 4}
-/* 有待办圆点（空闲会话被标记）：圆点占第一列，其余后移（与原生图标相同布局） */
-.nio-flat-has-dot .nio-sdone{grid-column:1;grid-row:1;align-self:center;justify-self:center}
-.nio-flat-has-dot .nio-flat-chip{grid-column:2}
-.nio-flat-has-dot .nio-flat-title{grid-column:2}
-.nio-flat-has-dot .nio-flat-time{grid-column:3}
-.nio-flat-has-dot .nio-flat-actions{grid-column:3}
-.nio-flat-has-dot .nio-fprev{grid-column:2 / 4}
+/* 单列表（flat）会话行：三行布局。
+   全部用「flatList 容器 → 会话行 → 直接子元素」的容器级选择器：React
+   重渲染重建行后布局立即正确，不依赖 JS 补挂类 —— 消除运行中/切换会话
+   时行重建导致的布局跳变闪烁。 */
+[class*="flatList"] [class*="sessionRow"]{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
+/* 第一行：状态图标 slot（空闲时为空占位） */
+[class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
+/* 第一行：工作区名称（加粗；非选中正常色，选中亮色） */
+[class*="flatList"] [class*="sessionRow"] > [data-nio-fchip]{box-sizing:border-box;grid-column:2;grid-row:1;align-self:center;justify-self:start;min-width:0;max-width:180px;font-size:12px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[class*="flatList"] [class*="sessionRow"][aria-selected="true"] > [data-nio-fchip]{color:var(--dsw-alias-state-business-primary)}
+/* 第一行：行尾时间（最后用户消息时间，复用原生 time 元素） */
+[class*="flatList"] [class*="sessionRow"] > [class*="time"]{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
+/* 第二行：会话标题 */
+[class*="flatList"] [class*="sessionRow"] > [class*="title"]{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
+/* 第二行最右：⋯ 菜单（固定占位，默认隐藏，hover 会话横幅时显示；仅影响第二行） */
+[class*="flatList"] [class*="sessionRow"] > [class*="rowActions"]{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
+[class*="flatList"] [class*="sessionRow"]:hover > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
+[class*="flatList"] [class*="sessionRow"]:hover > [class*="time"]{display:inline-flex !important}
+/* 第三行：最后用户消息预览（盒子高度与行高固定 1.2em，内容变化不改变行高） */
+[class*="flatList"] [class*="sessionRow"] > [data-nio-fprev]{grid-column:1 / 4;grid-row:3;align-self:start;min-width:0;height:1.2em;box-sizing:border-box;font-size:11px;line-height:1.2em;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+/* 有状态图标（slot 内有子元素：原生状态点或待办圆点）：标题/预览后移一列 */
+[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [class*="title"]{grid-column:2 / 4}
+[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-fprev]{grid-column:2 / 4}
 /* 设置面板「界面功能」页 */
 .nio-settings{display:flex;flex-direction:column;max-width:640px}
 /* 顶部「配置状态」固定横幅：始终渲染（高度恒定），dirty 只切换颜色与按钮 */

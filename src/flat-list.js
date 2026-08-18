@@ -66,19 +66,6 @@ function normalizePreviewText(text) {
   return t.length > PREVIEW_MAX_LEN ? t.slice(0, PREVIEW_MAX_LEN) + '…' : t
 }
 
-/** 标记行内原生子元素（幂等）并返回 { slot, title, time, actions } 引用。 */
-function markFlatRowChildren(row) {
-  const kids = { slot: null, title: null, time: null, actions: null }
-  for (const child of row.children) {
-    const cls = child.className && typeof child.className === 'string' ? child.className : ''
-    if (!kids.slot && cls.indexOf('slot') !== -1) { kids.slot = child; child.classList.add('nio-flat-slot'); continue }
-    if (!kids.title && cls.indexOf('title') !== -1) { kids.title = child; child.classList.add('nio-flat-title'); continue }
-    if (!kids.time && cls.indexOf('time') !== -1) { kids.time = child; child.classList.add('nio-flat-time'); continue }
-    if (!kids.actions && cls.indexOf('rowActions') !== -1) { kids.actions = child; child.classList.add('nio-flat-actions'); continue }
-  }
-  return kids
-}
-
 /**
  * 阻断单列表（flat）会话行的 hover 悬浮卡片。
  *
@@ -200,17 +187,6 @@ export function fixFlatRowMenuPosition() {
  */
 function renderFlatRow(row, sessionId, info, wsMap) {
   row.setAttribute('data-nio-flat', '1')
-  row.classList.add('nio-flat-row')
-  const kids = markFlatRowChildren(row)
-
-  // 第一行前置图标判定：
-  //  - has-status：原生状态图标（运行/等待/完成提醒的状态点，slot 内有子元素）；
-  //  - has-dot：会话待办圆点（空闲会话被标记时注入在行首）。
-  // 有其一则图标占第一列、chip 后移一列；都没有则 chip 从第一列开始（不占位）。
-  const hasStatus = !!(kids.slot && kids.slot.children.length > 0)
-  const hasDot = !!row.querySelector('[data-nio-sdone]')
-  row.classList.toggle('nio-flat-has-status', hasStatus)
-  row.classList.toggle('nio-flat-has-dot', hasDot)
 
   // 第一行左侧：工作区名称（纯文本加粗，非 badge；选中态由 CSS 变亮色）
   let chip = row.querySelector('[data-nio-fchip]')
@@ -218,7 +194,9 @@ function renderFlatRow(row, sessionId, info, wsMap) {
     chip = document.createElement('span')
     chip.className = 'nio-fchip'
     chip.setAttribute('data-nio-fchip', '1')
-    row.insertBefore(chip, kids.title || row.children[1] || null)
+    // 插入到原生标题元素之前（slot 之后、title 之前）。
+    const titleEl = row.querySelector('[class*="title"]')
+    row.insertBefore(chip, titleEl || row.children[1] || null)
   }
   const wsTitle = (wsMap && wsMap.get(sessionId)) || ''
   setText(chip, wsTitle || '未分组')
@@ -318,8 +296,13 @@ export function ensureFlatEnhance() {
     const s = stateById.get(sessionId)
     if (s && s.blank) continue
     const cached = lastMsgCache.get(sessionId)
-    if (cached && now - cached.at <= LAST_MSG_TTL) {
+    if (cached) {
+      // stale-while-revalidate：始终用缓存渲染（即使过期），预览永不清空；
+      // 过期时仅后台刷新，不闪空。
       renderFlatRow(row, sessionId, cached, wsMap)
+      if (now - cached.at > LAST_MSG_TTL && !lastMsgInflight.has(sessionId)) {
+        lastMsgPending.add(sessionId)
+      }
     } else if (!lastMsgInflight.has(sessionId)) {
       lastMsgPending.add(sessionId)
       renderFlatRow(row, sessionId, null, wsMap)
