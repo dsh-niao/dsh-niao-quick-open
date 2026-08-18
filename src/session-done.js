@@ -174,6 +174,30 @@ export function ensureSessionDoneDots() {
     for (const child of row.children) {
       if (child.classList && child.className.toString().includes('slot')) { slot = child; break }
     }
+    // 圆点归属位置（按「三行结构」）：
+    //  - 单列表（flat）行：圆点必须属于第一行容器 nio-flat-line1
+    //    （与工作区名称同组，属于第一行左侧）。容器由 ensureFlatEnhance
+    //    创建（scan 中它在本函数之后执行），若本轮尚未创建则跳过注入，
+    //    下一轮容器就绪后补入 —— 避免圆点平铺在行级造成结构混乱。
+    //  - 分组/搜索行：塞进原生 slot（复用占位），无 slot 则插行首。
+    const inFlat = !!row.closest('[class*="flatList"]')
+    const line1 = row.querySelector('[data-nio-flat-line1]')
+    const placeDot = (dotEl) => {
+      if (inFlat) {
+        if (!line1) return false
+        if (dotEl.parentElement !== line1) line1.insertBefore(dotEl, line1.firstChild)
+      } else if (slot) {
+        if (dotEl.parentElement !== slot) slot.appendChild(dotEl)
+      } else if (dotEl.parentElement !== row) {
+        row.insertBefore(dotEl, row.firstChild)
+      }
+      return true
+    }
+    if (inFlat && !line1) {
+      // flat 行容器尚未就绪：移除可能残留的行级圆点，等待下一轮补入。
+      if (existing) existing.remove()
+      continue
+    }
     if (existing) {
       // 状态可能变化（标记 ↔ 未标记），刷新类名与提示。
       // 若行解析到的 id 与圆点上记录的 id 不一致，说明配对漂移：
@@ -182,6 +206,8 @@ export function ensureSessionDoneDots() {
         existing.remove()
         continue
       }
+      // 位置校正：flat 行圆点必须位于 line1 内（修复历史平铺残留）。
+      placeDot(existing)
       existing.classList.toggle('nio-sdone-marked', userMarked)
       existing.setAttribute('aria-label', userMarked ? '已完成' : '设为待办')
       const tip = existing.querySelector('.nio-sdone-tip')
@@ -219,15 +245,8 @@ export function ensureSessionDoneDots() {
       const nowMarked = doneSessionIdSet().has(sid)
       setSessionDone(sid, !nowMarked)
     })
-    // 注入位置（按「三行结构」放置圆点）：
-    // 1) 单列表行有第一行容器（nio-flat-line1）→ 圆点放入容器首位
-    //    （与工作区名称同组，属于第一行左侧）；
-    // 2) 有原生 slot → 塞进 slot（复用占位，零额外空间）；
-    // 3) 否则插行首（复刻 slot 尺寸）。
-    const line1 = row.querySelector('[data-nio-flat-line1]')
-    if (line1) line1.insertBefore(dot, line1.firstChild)
-    else if (slot) slot.appendChild(dot)
-    else row.insertBefore(dot, row.firstChild)
+    // 按归属位置放置圆点（见 placeDot 注释）；flat 行且无 line1 已在上面 continue。
+    placeDot(dot)
   }
 }
 
