@@ -162,13 +162,17 @@ export function fixFlatRowMenuPosition() {
   const vw = window.innerWidth
   const vh = window.innerHeight
   for (const row of openRows) {
-    const rect = row.getBoundingClientRect()
+    // 以「⋯ 按钮」（rowActions）本身为锚点，而不是整行：整行有 82px 高，
+    // 按行定位会让菜单离按钮很远。
+    const btn = row.querySelector('[class*="rowActions"]')
+    if (!btn) continue
+    const rect = btn.getBoundingClientRect()
     for (const menu of menus) {
       const lw = menu.offsetWidth || 160
       const lh = menu.offsetHeight || 120
-      // 期望位置：菜单在行的【右下角外侧】——左缘贴行右缘外侧、顶缘在
-      // 行底缘下方（side=right + bottom 组合，右下弹出）。
-      // 视口放不下时翻转：右侧放不下 → 翻到行左侧；下方放不下 → 翻到行上方。
+      // 期望位置：菜单在「⋯ 按钮」的右下角外侧——左缘贴按钮右缘外侧、
+      // 顶缘在按钮底缘下方（紧贴按钮，side=right + bottom 组合）。
+      // 视口放不下时翻转：右侧放不下 → 翻到按钮左侧；下方放不下 → 翻到按钮上方。
       let left = rect.right + MARGIN
       if (left + lw > vw - MARGIN) left = Math.max(MARGIN, rect.left - lw - MARGIN)
       let top = rect.bottom + MARGIN
