@@ -66,8 +66,11 @@ export const CSS = `
 [class*="flatList"] > * + *{margin-top:0 !important}
 [class*="flatList"] [class*="sessionRow"]{height:auto !important;box-sizing:border-box;display:grid !important;grid-template-columns:minmax(28px,auto) minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;align-content:start;padding:7px 8px !important;margin-top:0 !important;border-radius:0 !important;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 /* —— 第一行（grid row 1） —— */
-/* 原生状态图标（React 管理，第一行第一列；空闲时无此元素） */
-[class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:center;min-width:0}
+/* 原生状态图标（React 管理，第一行第一列；空闲时无此元素）。
+   靠左（justify-self:start）而非居中：列1保底 28px，居中会把图标推到
+   9~19px、显得偏右；靠左后图标落在 3~13px，与空闲行待办圆点（absolute
+   left:0 内 10px 居中 = 3~13px）水平对齐，视觉一致。 */
+[class*="flatList"] [class*="sessionRow"] > [class*="slot"]{grid-column:1;grid-row:1;align-self:center;justify-self:start;min-width:0}
 /* 第一行左侧组（我们的容器：待办圆点 + 工作区名称）。
    待办圆点绝对定位在容器最左（position:relative + padding-left），从
    flex 流中移除——无论标题多长、grid 如何压缩，圆点都不会被挤没；
@@ -75,7 +78,11 @@ export const CSS = `
    截断省略）。有原生状态图标时图标占列1（16px）、本容器跨列1-2，
    padding-left:16px 为图标留位，内容从图标右侧开始。 */
 [class*="flatList"] [class*="sessionRow"] > [data-nio-flat-line1]{grid-column:1;grid-row:1;align-self:center;justify-self:start;position:relative;box-sizing:border-box;display:flex;align-items:center;min-width:max-content;padding-left:22px}
-[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:1 / 3;padding-left:16px}
+/* 有原生状态图标：line1 跨列 1-3。
+   padding-left 必须 ≥ 图标右缘（列1=28px，slot 16px 居中 → 图标
+   10px 落在 9~19px，右缘 19px）+ 间距 → 22px。过小会与图标重叠
+   （此前 16px 导致图标「靠右、与工作区名称重叠」）。 */
+[class*="flatList"] [class*="sessionRow"]:has(> [class*="slot"] > *) > [data-nio-flat-line1]{grid-column:1 / 3;padding-left:22px}
 /* 待办圆点（绝对定位在左侧组最左，不占 flex 流、永不被压缩） */
 [class*="flatList"] [data-nio-flat-line1] .nio-sdone{position:absolute;left:0;top:50%;transform:translateY(-50%)}
 /* 工作区名称（第一行左侧组内；加粗；非选中正常色，选中亮色）。
