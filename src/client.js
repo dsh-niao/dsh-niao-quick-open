@@ -869,6 +869,36 @@ function installFlatPointerGuard() {
 }
 
 /**
+ * 兜底隐藏单列表模式下的会话 hover 悬浮卡片。
+ *
+ * 事件级拦截（installFlatPointerGuard）在不同 React 事件绑定方式下可能
+ * 失效；此函数作为最终保障：React 通过 createPortal 把卡片渲染到 body
+ * 后，检测到含 hoverContent 的卡片节点就加 nio-hide-card 类（display:none）。
+ *
+ * 关键安全点：只加类、绝不删除节点——删除 React 渲染的 portal 节点会让
+ * React 卸载时找不到节点而异常，导致整个侧栏子树被卸载（此前列表消失
+ * 的根因）。加 display:none 不影响 React 的卸载（节点仍在 DOM 中）。
+ *
+ * 只在 flatList 存在（单列表模式）时生效；卡片在 DOM 插入后、浏览器
+ * 绘制前（MutationObserver microtask → rAF）被隐藏，用户看不到闪帧。
+ */
+function hideFlatHoverCards() {
+  if (!document.querySelector('[class*="flatList"]')) return
+  const contents = document.querySelectorAll('[class*="hoverContent"]')
+  for (const content of contents) {
+    let el = content
+    while (el && el !== document.body) {
+      if (el.parentElement === document.body) {
+        // 找到 portal 到 body 的卡片根（HoverCard 卡片 div 的直接挂载点）。
+        if (!el.classList.contains('nio-hide-card')) el.classList.add('nio-hide-card')
+        break
+      }
+      el = el.parentElement
+    }
+  }
+}
+
+/**
  * 渲染（或更新）单个 flat 会话行为三行布局：
  * 第一行：原生状态图标（有则显示）+ 工作区 chip + 行尾最后用户消息时间；
  * 第二行会话标题（原生，grid 定位）；第三行最后用户消息预览（单行省略）。
@@ -1361,6 +1391,7 @@ function scan() {
   try { clearDoneOnOpen() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
+  try { hideFlatHoverCards() } catch { /* 卡片隐藏失败时忽略 */ }
 }
 
 let scanScheduled = false
@@ -1417,6 +1448,8 @@ const CSS = `
 .nio-sdone-vh{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 .nio-sdone-tip{position:absolute;bottom:calc(100% + 6px);left:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-sdone:hover .nio-sdone-tip{opacity:1}
+/* 单列表 hover 悬浮卡片兜底隐藏（只加类不删节点，React 卸载不受影响） */
+.nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
 /* 单列表（flat）会话行：三行布局（第一行 状态图标+chip+时间 / 第二行标题 / 第三行预览） */
 .nio-flat-row{height:auto !important;min-height:82px;box-sizing:border-box;display:grid !important;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:6px;row-gap:1px;align-items:center;padding:7px 8px !important}
 /* 无前置图标（默认）：chip 跨前两列、time/actions 在最右列 */
