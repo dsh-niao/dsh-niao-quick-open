@@ -69,8 +69,11 @@ export const CSS = `
 [class*="flatList"] [class*="sessionRow"][aria-selected="true"] > [data-nio-fchip]{color:var(--dsw-alias-state-business-primary)}
 /* 第一行：行尾时间（最后用户消息时间，复用原生 time 元素） */
 [class*="flatList"] [class*="sessionRow"] > [class*="time"]{grid-column:3;grid-row:1;align-self:center;justify-self:end;min-width:0;white-space:nowrap}
-/* 第二行：会话标题 —— 始终全宽（图标只占第一行，不挤占标题） */
-[class*="flatList"] [class*="sessionRow"] > [class*="title"]{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
+/* 第二行：会话标题 —— 始终全宽（图标只占第一行，不挤占标题）。
+   覆盖原生 title margin（0 6px 0 4px）：原生仅对空闲行
+   （flatSessionRowWithoutStatus）归零 margin-left，非空闲行会偏右 4px；
+   统一归零使三种状态完全对齐。 */
+[class*="flatList"] [class*="sessionRow"] > [class*="title"]{grid-column:1 / 3;grid-row:2;align-self:center;min-width:0;margin:0 !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:20px}
 /* 第二行最右：⋯ 菜单（固定占位，默认隐藏，hover 会话横幅时显示；仅影响第二行） */
 [class*="flatList"] [class*="sessionRow"] > [class*="rowActions"]{grid-column:3;grid-row:2;align-self:center;justify-self:end;display:inline-flex !important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease}
 [class*="flatList"] [class*="sessionRow"]:hover > [class*="rowActions"]{opacity:1;visibility:visible;pointer-events:auto}
