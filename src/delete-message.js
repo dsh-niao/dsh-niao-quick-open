@@ -5,16 +5,20 @@
  * 「删除」图标按钮：点击弹出二次确认，确认后通知宿主端以 surface
  * replace 遮蔽机制删除该用户消息（连带其后续的大模型回复，即整轮）。
  *
- * 大模型回复不单独注入删除按钮：删用户消息已能带走其回复，避免冗余。
+ * 界面同步删除：DSH 客户端界面（human transcript）故意不跟随 replace
+ * 遮蔽（被删旧消息刷新后仍会重新渲染，这是产品设计），因此本模块用
+ * 「已删除」标记（宿主端 list-surface 返回的 deleted 字段，来自日志里
+ * 的 nio-delete 占位事件）把对应的 DOM 消息行 CSS 隐藏——删除后立即
+ * 隐藏，刷新后经 list-surface 重新识别并继续隐藏，跨会话/跨刷新持久。
  *
  * 定位策略（不依赖原生 hash 类名）：
  *  - 消息行：React 渲染的 flowItem 带稳定 data 属性
  *    [data-chat-flow-kind="user"]（用户输入）；
- *  - seq 定位：调用宿主端 list-surface 拉取当前会话 surface 节点
- *    （模型可见消息，按 seq 升序），与 DOM 行按「同角色、同顺序」配对；
+ *  - seq 定位：调用宿主端 list-surface 拉取当前会话全部 append 用户消息
+ *    （按 seq 升序，与界面 transcript 顺序一致），与 DOM 行按顺序配对；
  *  - 操作行：消息行内 aria-label 为「复制 / Copy」的按钮的父元素
  *    （原生 MessageIconActions 行），回退 [class*="actions"]。
- * 受配置「消息删除」开关控制（关闭时移除已注入按钮）。
+ * 受配置「消息删除」开关控制（关闭时移除已注入按钮、恢复被隐藏行）。
  *
  * @module dsh-niao-quick-open/client/delete-message
  */
@@ -24,7 +28,7 @@ import { rpc } from './utils.js'
 import { trashSvg } from './icons.js'
 import { registerUIApply } from './config.js'
 
-/** surface 列表缓存：{ sessionId, at, users, assistants }；2s 内不重复拉取。 */
+/** 用户消息列表缓存：{ sessionId, at, users }；2s 内不重复拉取。 */
 let surfaceCache = null
 const SURFACE_TTL = 2000
 /** 正在拉取的 sessionId（防并发重复请求）。 */
@@ -44,30 +48,23 @@ function currentSessionId() {
 }
 
 /**
- * 拉取当前会话的 surface 节点列表（带缓存与节流）。
- * @returns {Promise<Array<{seq:number, role:string, text:string}>>}
+ * 拉取当前会话的用户消息列表（带缓存与节流）。
+ * @returns {Promise<Array<{seq:number, role:string, text:string, deleted:boolean}>>}
  */
 async function fetchSurface(sessionId) {
   if (!sessionId) return []
   const now = Date.now()
   if (surfaceCache && surfaceCache.sessionId === sessionId && now - surfaceCache.at < SURFACE_TTL) {
-    return [...surfaceCache.users, ...surfaceCache.assistants]
+    return surfaceCache.users
   }
   if (surfaceFetching === sessionId) return []
   surfaceFetching = sessionId
   try {
     const res = await rpc('list-surface', { sessionId })
     const items = (res.ok && res.value && Array.isArray(res.value.items)) ? res.value.items : []
-    const users = []
-    const assistants = []
-    for (const item of items) {
-      if (item && typeof item.seq === 'number') {
-        if (item.role === 'user') users.push(item)
-        else if (item.role === 'assistant') assistants.push(item)
-      }
-    }
-    surfaceCache = { sessionId, at: now, users, assistants }
-    return items
+    const users = items.filter((item) => item && item.role === 'user' && typeof item.seq === 'number')
+    surfaceCache = { sessionId, at: now, users }
+    return users
   } finally {
     surfaceFetching = ''
   }
@@ -82,14 +79,8 @@ function actionsRowOf(row) {
   return null
 }
 
-/** 从行内提取可展示的文本（用于调试/校验；不作为配对依据）。 */
-function rowText(row) {
-  const text = row.textContent || ''
-  return text.replace(/\s+/g, ' ').trim().slice(0, 120)
-}
-
 /** 注入单个删除按钮到操作行；行已注入且 seq 相同则跳过。 */
-function injectDeleteButton(row, actions, seq, role) {
+function injectDeleteButton(row, actions, seq) {
   const existing = row.querySelector('[data-nio-del]')
   if (existing) {
     if (existing.getAttribute('data-nio-del-seq') === String(seq)) return
@@ -100,34 +91,59 @@ function injectDeleteButton(row, actions, seq, role) {
   btn.className = 'nio-del'
   btn.setAttribute('data-nio-del', '1')
   btn.setAttribute('data-nio-del-seq', String(seq))
-  btn.setAttribute('data-nio-del-role', role)
+  btn.setAttribute('data-nio-del-role', 'user')
   btn.setAttribute('aria-label', '删除该消息')
   const tip = document.createElement('span')
   tip.className = 'nio-del-tip'
-  tip.textContent = role === 'user' ? '删除该消息（含回复）' : '删除该回答'
+  tip.textContent = '删除该消息（含回复）'
   btn.appendChild(trashSvg.cloneNode(true))
   btn.appendChild(tip)
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
-    showDeleteConfirm(role, seq)
+    showDeleteConfirm(row, seq)
   })
   actions.appendChild(btn)
 }
 
-/** 按「同角色、同顺序」把 surface 节点配对到 DOM 消息行并注入按钮。 */
+/** 把 DOM 消息行标记为「已删除」并隐藏；同时隐藏其后的大模型回复行。 */
+function hideDeletedRegion(userRow) {
+  userRow.classList.add('nio-del-hidden')
+  // 隐藏其后直到下一条 user 消息之前的所有回复行（assistant-step / turn-tail）。
+  let node = userRow.nextElementSibling
+  while (node) {
+    const kind = node.getAttribute && node.getAttribute('data-chat-flow-kind')
+    if (kind === 'user') break
+    node.classList.add('nio-del-hidden')
+    node = node.nextElementSibling
+  }
+}
+
+/** 恢复全部被隐藏的行并移除按钮（开关关闭 / 数据源变更时调用）。 */
+function clearDeletedRegions() {
+  for (const el of Array.from(document.querySelectorAll('.nio-del-hidden'))) el.classList.remove('nio-del-hidden')
+}
+
+/**
+ * 按顺序把宿主端用户消息列表配对到 DOM 用户消息行：
+ *  - deleted=true 的行 → 隐藏该行及其后回复（不注入按钮）；
+ *  - 其余行 → 注入删除按钮。
+ */
 function applyDeleteButtons(sessionId, items) {
-  if (!sessionId || !Array.isArray(items) || items.length === 0) return
-  const users = items.filter((item) => item.role === 'user')
-  // 用户消息：内容行（user）内部就带操作按钮行（复制按钮所在行）。
-  // 删除按钮只注入用户消息：删除用户消息会连带删除其后续的大模型回复
-  // （宿主端 user 分支扩展到下一条 user 之前），大模型回复无需单独按钮。
+  if (!sessionId) return
+  const users = Array.isArray(items) ? items : []
   const userRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="user"]'))
   let ui = 0
   for (const row of userRows) {
-    if (ui >= users.length) break
-    const actions = actionsRowOf(row)
-    if (!actions) continue
-    injectDeleteButton(row, actions, users[ui].seq, 'user')
+    const item = ui < users.length ? users[ui] : null
+    if (item) {
+      if (item.deleted) {
+        hideDeletedRegion(row)
+      } else {
+        row.classList.remove('nio-del-hidden')
+        const actions = actionsRowOf(row)
+        if (actions) injectDeleteButton(row, actions, item.seq)
+      }
+    }
     ui += 1
   }
 }
@@ -138,12 +154,13 @@ function removeDeleteButtons() {
 }
 
 /**
- * 扫描并维护消息删除按钮。幂等：已注入且 seq 相同的行跳过；
- * surface 缓存过期 / 会话切换时重新拉取后配对。
+ * 扫描并维护消息删除按钮与已删除行的隐藏。幂等：已注入且 seq 相同的行
+ * 跳过；列表缓存过期 / 会话切换时重新拉取后配对。
  */
 export function ensureDeleteButtons() {
   if (!pluginConfig.messageDelete) {
     removeDeleteButtons()
+    clearDeletedRegions()
     return
   }
   if (!document.querySelector('[data-conversation-scroll]')) return
@@ -151,8 +168,7 @@ export function ensureDeleteButtons() {
   if (!sessionId) return
   const now = Date.now()
   if (surfaceCache && surfaceCache.sessionId === sessionId && now - surfaceCache.at < SURFACE_TTL) {
-    // 缓存有效：直接用缓存配对（幂等，避免每次 scan 都拉取）。
-    applyDeleteButtons(sessionId, [...surfaceCache.users, ...surfaceCache.assistants])
+    applyDeleteButtons(sessionId, surfaceCache.users)
     return
   }
   if (surfaceFetching === sessionId) return
@@ -180,16 +196,14 @@ function failOverlay(text) {
   dialog.appendChild(err)
 }
 
-/** 弹出删除二次确认框；确认后执行删除并处理结果。 */
-function showDeleteConfirm(role, seq) {
+/** 弹出删除二次确认框；确认后执行删除并同步隐藏界面。 */
+function showDeleteConfirm(row, seq) {
   if (deleteOverlay) closeDeleteOverlay()
   const sessionId = currentSessionId()
   if (!sessionId) {
     failOverlay('无法确定当前会话')
     return
   }
-  // 当前仅用户消息有删除按钮（删除该消息及其后续回复）。
-  const isUser = role === 'user'
   const overlay = document.createElement('div')
   overlay.className = 'nio-confirm'
   overlay.setAttribute('data-nio-confirm', '1')
@@ -199,12 +213,10 @@ function showDeleteConfirm(role, seq) {
   dialog.setAttribute('aria-modal', 'true')
   const title = document.createElement('div')
   title.className = 'nio-confirm-title'
-  title.textContent = isUser ? '删除这条消息？' : '删除这条回答？'
+  title.textContent = '删除这条消息？'
   const desc = document.createElement('div')
   desc.className = 'nio-confirm-desc'
-  desc.textContent = isUser
-    ? '将删除该消息及其后续回复，模型将不再记得这条对话内容。此操作不可恢复（模型视角）。'
-    : '将删除该回答，模型将不再记得这条内容。此操作不可恢复（模型视角）。'
+  desc.textContent = '将删除该消息及其后续回复，模型将不再记得这条对话内容。此操作不可恢复（模型视角）。'
   const actions = document.createElement('div')
   actions.className = 'nio-confirm-actions'
   const cancel = document.createElement('button')
@@ -231,6 +243,10 @@ function showDeleteConfirm(role, seq) {
     rpc('delete-message', { sessionId, seq }).then((res) => {
       if (res.ok) {
         closeDeleteOverlay()
+        // 界面同步：隐藏该行及其后回复；清缓存，让下一次 scan 用
+        // list-surface 的 deleted 标记重新对齐（刷新后依然隐藏）。
+        hideDeletedRegion(row)
+        surfaceCache = null
         return
       }
       ok.disabled = false

@@ -171,6 +171,8 @@ export const CSS = `
 .nio-del:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-state-error-primary)}
 .nio-del-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-del:hover .nio-del-tip{opacity:1}
+/* 已删除的消息行（含其后的回复行）：整体隐藏（CSS 隐藏不动 React 结构） */
+.nio-del-hidden{display:none !important}
 /* 删除确认框内的错误提示 */
 .nio-del-err{color:var(--dsw-alias-state-error-primary) !important;font-weight:500}
 /* 左下角重启按钮：absolute 定位在设置行右侧（定位上下文 = settingsArea） */
