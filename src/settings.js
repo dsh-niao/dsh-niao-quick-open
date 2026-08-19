@@ -206,6 +206,23 @@ export function ConfigPanel() {
         ),
       ),
     ),
+    // 「用户消息导航条」组（与「消息删除」同级）：会话右侧用户消息导航条开关。
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '用户消息导航条'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，会话聊天区域右侧显示本会话的用户消息导航条：每条用户消息一个标记，悬停查看提问摘要、点击跳转（复刻 DeepSeek 网页版样式）；用户消息少于两条或内容未超一屏时不显示'),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.conversationNav,
+            onChange: (e) => save({ conversationNav: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
     // 「重启按钮」组（与「工作区快捷按钮」同级）：开关控制左下角按钮是否显示。
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },

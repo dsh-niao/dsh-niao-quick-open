@@ -1,17 +1,17 @@
 /**
  * dsh-niao-quick-open — 浏览器端：对话消息「删除」按钮。
  *
- * 在每条用户消息 / 大模型回复下方那一行操作按钮（复制按钮所在行）末尾
- * 追加一个「删除」图标按钮：点击弹出二次确认，确认后通知宿主端以
- * surface replace 遮蔽机制从模型上下文中删除该消息（连同其回复）。
+ * 在每条用户消息下方那一行操作按钮（复制按钮所在行）末尾追加一个
+ * 「删除」图标按钮：点击弹出二次确认，确认后通知宿主端以 surface
+ * replace 遮蔽机制删除该用户消息（连带其后续的大模型回复，即整轮）。
+ *
+ * 大模型回复不单独注入删除按钮：删用户消息已能带走其回复，避免冗余。
  *
  * 定位策略（不依赖原生 hash 类名）：
  *  - 消息行：React 渲染的 flowItem 带稳定 data 属性
- *    [data-chat-flow-kind="user"]（用户输入）/ [data-chat-flow-kind=
- *    "assistant-step"]（大模型回复，含 streaming 中的行）；
+ *    [data-chat-flow-kind="user"]（用户输入）；
  *  - seq 定位：调用宿主端 list-surface 拉取当前会话 surface 节点
  *    （模型可见消息，按 seq 升序），与 DOM 行按「同角色、同顺序」配对；
- *    正在生成的回复行在 surface 中尚无对应节点，自动跳过不注入；
  *  - 操作行：消息行内 aria-label 为「复制 / Copy」的按钮的父元素
  *    （原生 MessageIconActions 行），回退 [class*="actions"]。
  * 受配置「消息删除」开关控制（关闭时移除已注入按钮）。
@@ -118,8 +118,9 @@ function injectDeleteButton(row, actions, seq, role) {
 function applyDeleteButtons(sessionId, items) {
   if (!sessionId || !Array.isArray(items) || items.length === 0) return
   const users = items.filter((item) => item.role === 'user')
-  const assistants = items.filter((item) => item.role === 'assistant')
   // 用户消息：内容行（user）内部就带操作按钮行（复制按钮所在行）。
+  // 删除按钮只注入用户消息：删除用户消息会连带删除其后续的大模型回复
+  // （宿主端 user 分支扩展到下一条 user 之前），大模型回复无需单独按钮。
   const userRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="user"]'))
   let ui = 0
   for (const row of userRows) {
@@ -128,35 +129,6 @@ function applyDeleteButtons(sessionId, items) {
     if (!actions) continue
     injectDeleteButton(row, actions, users[ui].seq, 'user')
     ui += 1
-  }
-  // 大模型回复：内容行（assistant-step）与操作按钮行（turn-tail）是
-  // 两个独立 flowItem——复制/赞同/反对/分享等按钮在 turn-tail 节点里，
-  // 每个 turn 结束后只渲染一条。按钮必须注入到 turn-tail 的操作行。
-  injectAssistantDeleteButtons(assistants)
-}
-
-/**
- * 为大模型回复注入删除按钮。
- * 按 DOM 顺序遍历 flowItem：每遇到一个 assistant-step 递增 stepIndex
- * （与 surface assistants 数组按序一一对应）；遇到 turn-tail 时，它归属
- * 「前面最近的那个 assistant-step」（当前 stepIndex），在其操作行内注入。
- * 正在生成中的回复（turn 未结束）没有 turn-tail，自然不注入。
- */
-function injectAssistantDeleteButtons(assistants) {
-  if (!Array.isArray(assistants) || assistants.length === 0) return
-  const flowItems = Array.from(document.querySelectorAll('[data-chat-flow-kind]'))
-  let stepIndex = -1
-  for (const item of flowItems) {
-    const kind = item.getAttribute('data-chat-flow-kind')
-    if (kind === 'assistant-step') {
-      stepIndex += 1
-      continue
-    }
-    if (kind !== 'turn-tail') continue
-    if (stepIndex < 0 || stepIndex >= assistants.length) continue
-    const actions = actionsRowOf(item)
-    if (!actions) continue
-    injectDeleteButton(item, actions, assistants[stepIndex].seq, 'assistant')
   }
 }
 
@@ -216,6 +188,7 @@ function showDeleteConfirm(role, seq) {
     failOverlay('无法确定当前会话')
     return
   }
+  // 当前仅用户消息有删除按钮（删除该消息及其后续回复）。
   const isUser = role === 'user'
   const overlay = document.createElement('div')
   overlay.className = 'nio-confirm'

@@ -4,7 +4,7 @@
  * 全部使用 DSH 主题语义变量（--dsw-alias-*），随亮/暗主题自动切换。
  * 按功能模块分区注释：会话 header 工作区行 → 工作区菜单快捷按钮 →
  * 会话待办圆点 → 单列表三行布局 → 设置面板 → 左下角重启按钮 →
- * 重启确认框/等待层。
+ * 重启确认框/等待层 → 会话右侧用户消息导航条。
  *
  * @module dsh-niao-quick-open/client/styles
  */
@@ -198,4 +198,14 @@ export const CSS = `
 .nio-reboot-spinner{width:26px;height:26px;border:2px solid var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-state-business-primary);border-radius:50%;animation:nio-reboot-spin .8s linear infinite}
 @keyframes nio-reboot-spin{to{transform:rotate(360deg)}}
 .nio-reboot-text{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+/* 会话右侧「用户消息导航条」：复刻 DeepSeek 网页版悬浮显示条（fixed 在 body 下，随主题变量切换）。
+   面板默认淡出隐藏（opacity 0 + visibility hidden），指针进入热区时淡入，移开约 0.45s 后淡出；
+   标记按消息在内容中的比例定位，悬停出摘要卡、点击跳转；底部显示用户消息总数徽标。 */
+.nio-nav{position:fixed;z-index:2147483000;box-sizing:border-box;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 82%,transparent);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 2px 12px rgba(0,0,0,.22);opacity:0;visibility:hidden;transition:opacity 200ms ease,visibility 200ms}
+.nio-nav-marker{position:absolute;left:7px;right:7px;border:0;border-radius:999px;padding:0;margin:0;cursor:pointer;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-label-primary,#888) 55%,transparent);opacity:.72;transition:opacity 120ms ease,transform 120ms ease}
+.nio-nav-marker:hover{opacity:1;transform:scaleY(1.45);background:var(--dsw-alias-label-primary,#888)}
+.nio-nav-count{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-size:9px;line-height:1;color:var(--dsw-alias-label-secondary,#aaa);pointer-events:none;user-select:none}
+.nio-nav-tip{position:fixed;z-index:2147483100;max-width:300px;max-height:220px;overflow:hidden;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#eee);background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 92%,transparent);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;user-select:none;opacity:0;transition:opacity 120ms ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-nav-tip-title{display:block;font-weight:600;margin-bottom:4px;color:var(--dsw-alias-label-secondary,#bbb)}
+.nio-nav-tip-body{display:block;white-space:pre-wrap;word-break:break-word}
 `
