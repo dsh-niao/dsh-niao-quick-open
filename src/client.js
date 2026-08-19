@@ -14,7 +14,6 @@
  *  - workspace-menu.js 工作区「⋯」菜单快捷按钮行
  *  - session-done.js   会话待办标记圆点
  *  - flat-list.js      单列表（flat）三行布局 + hover 卡片禁用
- *  - delete-message.js 对话消息「删除」按钮
  *  - conversation-nav.js 会话右侧「用户消息导航条」
  *  - settings.js       设置面板「界面功能」（React 组件）
  *  - restart.js        左下角「硬性重启」按钮 + 二次确认 + 等待层
@@ -33,7 +32,6 @@ import { clearDoneOnOpen, ensureSessionDoneDots } from './session-done.js'
 import { ensureFlatEnhance, fixFlatRowMenuPosition, hideFlatHoverCards, installFlatPointerGuard } from './flat-list.js'
 import { installDblclickRename } from './dblclick-rename.js'
 import { ensureHeaderViewSwitches } from './header-view-switches.js'
-import { ensureDeleteButtons } from './delete-message.js'
 import { ensureConversationNav } from './conversation-nav.js'
 import { ConfigPanel } from './settings.js'
 import { ensureRestartButton } from './restart.js'
@@ -52,7 +50,6 @@ function scan() {
   try { ensureSessionDoneDots() } catch { /* 会话区尚未就绪时静默跳过 */ }
   try { ensureFlatEnhance() } catch { /* flat 列表尚未就绪时静默跳过 */ }
   try { ensureHeaderViewSwitches() } catch { /* 头部图标未就绪时静默跳过 */ }
-  try { ensureDeleteButtons() } catch { /* 会话消息未就绪时静默跳过 */ }
   try { ensureConversationNav() } catch { /* 对话滚动容器未就绪时静默跳过 */ }
   try { fixFlatRowMenuPosition() } catch { /* 菜单定位失败时忽略 */ }
   try { hideFlatHoverCards() } catch { /* 卡片隐藏失败时忽略 */ }

@@ -11,8 +11,8 @@
  * @module dsh-niao-quick-open/client/state
  */
 
-/** 运行时配置缓存：{ enabled, editor, showRestart, menuQuickActions, sessionDoneMark, flatListStyle, headerViewSwitches, messageDelete, conversationNav }。 */
-export let pluginConfig = { enabled: true, editor: '', showRestart: true, menuQuickActions: false, sessionDoneMark: false, flatListStyle: true, headerViewSwitches: false, messageDelete: true, conversationNav: true }
+/** 运行时配置缓存：{ enabled, editor, showRestart, menuQuickActions, sessionDoneMark, flatListStyle, headerViewSwitches, conversationNav }。 */
+export let pluginConfig = { enabled: true, editor: '', showRestart: true, menuQuickActions: false, sessionDoneMark: false, flatListStyle: true, headerViewSwitches: false, conversationNav: true }
 
 /** apply 时保存的 client 根 ctx（仅保存引用，供 sessions / slots 可选读取）。 */
 export let runtimeCtx = null

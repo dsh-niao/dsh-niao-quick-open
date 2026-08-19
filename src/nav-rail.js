@@ -15,8 +15,8 @@
  *
  * 数据来源：读取 DSH 已渲染的会话行 [data-chat-anchor-key]，按
  * data-chat-flow-kind 为 'user'（正常提问）或 'steering'（插话，同为
- * 用户输入）过滤（与 delete-message.js 同一套稳定 data 属性，不依赖
- * hash 类名）；纯浏览器端，零宿主端改动。
+ * 用户输入）过滤（稳定 data 属性，不依赖 hash 类名）；纯浏览器端，
+ * 零宿主端改动。
  *
  * @module dsh-niao-quick-open/client/nav-rail
  */
@@ -41,6 +41,8 @@ const MAX_PANEL_HEIGHT = 520
 const RIGHT_MARGIN = 10
 const SUMMARY_MAX_CHARS = 200
 const SCROLL_PADDING = 12
+/** 悬浮摘要卡固定宽度（px）：右缘稳定对齐纵向条左侧，内容不撑宽。 */
+const TIP_WIDTH = 280
 
 /* ------------------------------------------------------------------ */
 /* 几何 / 文本工具（纯函数）                                             */
@@ -335,16 +337,19 @@ export class Rail {
     this.tipBody.textContent = body
     this.tipBody.style.display = body.length === 0 ? 'none' : 'block'
     this.tip.style.display = 'block'
+    // 固定宽度（右缘对齐纵向条），内容不撑宽；右缘稳定贴在纵向条左侧。
+    this.tip.style.width = TIP_WIDTH + 'px'
     // 强制布局后再淡入（display 切换后需要一次重排才能过渡）。
     void this.tip.offsetWidth
     requestAnimationFrame(() => {
       if (this.hoveredKey === row.key) this.tip.style.opacity = '1'
     })
-    const width = this.tip.offsetWidth
     const height = this.tip.offsetHeight
     const gap = 10
     const margin = 8
-    const left = Math.max(margin, panelRect.left - gap - width)
+    // 右缘 = 纵向条左缘 - gap（固定，不随内容宽度变化）；视口放不下时夹回。
+    const right = Math.min(panelRect.left - gap, window.innerWidth - margin)
+    const left = Math.max(margin, right - TIP_WIDTH)
     const top = Math.min(
       Math.max(margin, anchorTop - height / 2),
       Math.max(margin, window.innerHeight - height - margin),

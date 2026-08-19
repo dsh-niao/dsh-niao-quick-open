@@ -189,24 +189,7 @@ export function ConfigPanel() {
         ),
       ),
     ),
-    // 「消息删除」组（与「单列表增强样式」同级）：对话消息下方删除按钮开关。
-    React.createElement('div', { className: 'nio-settings-group' },
-      React.createElement('div', { className: 'nio-settings-row' },
-        React.createElement('div', { className: 'nio-settings-text' },
-          React.createElement('div', { className: 'nio-settings-title' }, '消息删除'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，每条用户消息 / 大模型回复下方操作按钮行出现「删除」按钮：点击可将该消息（及用户消息的后续回复）从会话中删除，模型将不再记得这条内容'),
-        ),
-        React.createElement('label', { className: 'nio-settings-toggle' },
-          React.createElement('input', {
-            type: 'checkbox',
-            checked: !!state.messageDelete,
-            onChange: (e) => save({ messageDelete: e.target.checked }),
-          }),
-          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
-        ),
-      ),
-    ),
-    // 「用户消息导航条」组（与「消息删除」同级）：会话右侧用户消息导航条开关。
+    // 「用户消息导航条」组（与「单列表增强样式」同级）：会话右侧用户消息导航条开关。
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
         React.createElement('div', { className: 'nio-settings-text' },

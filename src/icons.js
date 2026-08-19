@@ -71,11 +71,3 @@ export const restartSvg = makeSvg([
   { d: 'M7.998 9.003a5 5 0 1 0 8-.005' },
 ], '0 0 24 24', true)
 
-/** 删除图标（Lucide trash-2：垃圾桶 + 两条斜线），24 视口 stroke 风格。 */
-export const trashSvg = makeSvg([
-  { d: 'M3 6h18' },
-  { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' },
-  { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' },
-  { d: 'M10 11v6' },
-  { d: 'M14 11v6' },
-], '0 0 24 24', true)
