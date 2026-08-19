@@ -200,8 +200,6 @@ export function ensureHeaderViewSwitches() {
     tip.className = 'nio-hvswitch-tip'
     // 立即写入初始提示文本（不依赖后续 scan 的 setText，杜绝空提示）。
     tip.textContent = tipTextFor(kind, st[kind])
-    // title 属性兜底：浏览器原生提示一定显示（即使 span 样式被干扰）。
-    btn.title = tip.textContent
     btn.appendChild(groupBySvg.cloneNode(true))
     btn.appendChild(tip)
     btn.addEventListener('click', (e) => {
@@ -209,6 +207,33 @@ export function ensureHeaderViewSwitches() {
       const cur = viewState()
       pickMenuOption(kind, targetItemText(kind, cur[kind]))
     })
+    // hover 提示（仿原生 Tooltip：bottom 居中 + 500ms 延迟 + 淡入）。
+    // fixed 定位（sectionHeader overflow:hidden 会裁剪 absolute 气泡），
+    // 位置按按钮 rect 计算；显隐用 opacity 过渡。
+    let showTimer = null
+    const hideTip = () => {
+      if (showTimer) { window.clearTimeout(showTimer); showTimer = null }
+      tip.style.opacity = '0'
+    }
+    btn.addEventListener('mouseenter', () => {
+      if (showTimer) window.clearTimeout(showTimer)
+      showTimer = window.setTimeout(() => {
+        showTimer = null
+        const rect = btn.getBoundingClientRect()
+        tip.style.left = (rect.left + rect.width / 2) + 'px'
+        tip.style.top = (rect.bottom + 8) + 'px'
+        tip.style.opacity = '1'
+      }, 500)
+    })
+    btn.addEventListener('mouseleave', hideTip)
+    btn.addEventListener('focus', () => {
+      if (showTimer) window.clearTimeout(showTimer)
+      const rect = btn.getBoundingClientRect()
+      tip.style.left = (rect.left + rect.width / 2) + 'px'
+      tip.style.top = (rect.bottom + 8) + 'px'
+      tip.style.opacity = '1'
+    })
+    btn.addEventListener('blur', hideTip)
     // 插入到整行最左侧：「会话」/「工作区」文字（sectionLabel）之前；
     // 无文字（rail 窄模式）则插到行首。
     const label = section.querySelector('[class*="sectionLabel"]')
@@ -218,16 +243,13 @@ export function ensureHeaderViewSwitches() {
   }
   // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
   // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
-  // 同时同步按钮 title（浏览器原生提示兜底）。
   const st = viewState()
   const zh = isZh()
   const groupTip = section.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
-  const groupBtn = section.querySelector('[data-nio-hvswitch="groupBy"]')
   const groupText = zh
     ? `当前为${modeLabel('groupBy', st.groupBy)}，点击后切换为${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
     : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
   setText(groupTip, groupText)
-  if (groupBtn && groupBtn.title !== groupText) groupBtn.title = groupText
 }
 
 /** 配置「工作区栏头部增强」开关变化时重建头部图标。 */
