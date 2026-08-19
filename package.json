@@ -1,6 +1,6 @@
 {
   "name": "dsh-niao-quick-open",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "UI enhancement suite for DeepSeek Harness: one-click workspace open (Finder/editor), auto-discovered default editor, DeepSeek-web-style user-message nav rail, session to-do marks, flat-list polish, and hard restart. · DeepSeek Harness 界面增强插件：工作区一键打开、编辑器自动发现、用户消息导航条、会话待办标记、单列表增强与硬性重启。",
   "keywords": [
     "deepseek",
@@ -56,5 +56,16 @@
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsh-niao/dsh-niao-quick-open.git"
+  },
+  "author": {
+    "name": "dsh-niao"
+  },
+  "homepage": "https://github.com/dsh-niao/dsh-niao-quick-open",
+  "bugs": {
+    "url": "https://github.com/dsh-niao/dsh-niao-quick-open/issues"
   }
 }
