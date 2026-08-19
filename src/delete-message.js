@@ -108,11 +108,13 @@ function injectDeleteButton(row, actions, seq) {
 /** 把 DOM 消息行标记为「已删除」并隐藏；同时隐藏其后的大模型回复行。 */
 function hideDeletedRegion(userRow) {
   userRow.classList.add('nio-del-hidden')
-  // 隐藏其后直到下一条 user 消息之前的所有回复行（assistant-step / turn-tail）。
+  // 隐藏其后直到下一条「用户消息行」之前的所有行（assistant-step /
+  // turn-tail / tool 行）。用户消息行可能是 user 或 steering（插话）——
+  // 两者都代表新一条用户输入，遇到即停止，避免误删后续对话。
   let node = userRow.nextElementSibling
   while (node) {
     const kind = node.getAttribute && node.getAttribute('data-chat-flow-kind')
-    if (kind === 'user') break
+    if (kind === 'user' || kind === 'steering') break
     node.classList.add('nio-del-hidden')
     node = node.nextElementSibling
   }
@@ -127,20 +129,28 @@ function clearDeletedRegions() {
  * 按顺序把宿主端用户消息列表配对到 DOM 用户消息行：
  *  - deleted=true 的行 → 隐藏该行及其后回复（不注入按钮）；
  *  - 其余行 → 注入删除按钮。
+ *
+ * 配对策略（尾部对齐）：DSH 对话历史分页加载，DOM 只渲染窗口内的行。
+ * 宿主端返回全部用户消息（按 seq 升序），当 DOM 行数少于列表长度时，
+ * 说明旧消息不在窗口内——用列表尾部对齐 DOM（最新 N 条），顺序一致；
+ * 不再因数量不一致而整体跳过（那会导致删除按钮全部消失）。
  */
 function applyDeleteButtons(sessionId, items) {
   if (!sessionId) return
   const users = Array.isArray(items) ? items : []
-  const userRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="user"]'))
-  // 防御：宿主端只返回真实用户消息（source.kind==='user'），数量应与界面
-  // 用户行一致；不一致说明数据源或渲染有偏差，宁可跳过本次配对也不错位。
-  if (userRows.length !== users.length) {
-    if (window.console) console.warn('[dsh-niao-quick-open] 用户消息列表与界面行数不一致（list=%d dom=%d），跳过注入', users.length, userRows.length)
-    return
+  const scrollport = document.querySelector('[data-conversation-scroll]')
+  // 用户消息行 = user 或 steering（插话发送也是用户输入，宿主端 source.kind
+  // 同为 'user'，前端渲染为 steering 行；两者都要纳入配对与按钮）。
+  const userRows = scrollport ? Array.from(scrollport.querySelectorAll('[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]')) : []
+  if (userRows.length === 0) return
+  // 尾部对齐：列表比 DOM 多出的部分 = 分页窗口外的旧消息，从偏移处开始配对。
+  const offset = Math.max(0, users.length - userRows.length)
+  if (offset > 0 && window.console) {
+    console.warn('[dsh-niao-quick-open] 列表 %d 条 > 界面 %d 行（分页窗口），按尾部对齐', users.length, userRows.length)
   }
   for (let i = 0; i < userRows.length; i += 1) {
     const row = userRows[i]
-    const item = users[i]
+    const item = users[offset + i]
     if (!item) continue
     if (item.deleted) {
       hideDeletedRegion(row)
