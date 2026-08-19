@@ -132,19 +132,23 @@ function applyDeleteButtons(sessionId, items) {
   if (!sessionId) return
   const users = Array.isArray(items) ? items : []
   const userRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="user"]'))
-  let ui = 0
-  for (const row of userRows) {
-    const item = ui < users.length ? users[ui] : null
-    if (item) {
-      if (item.deleted) {
-        hideDeletedRegion(row)
-      } else {
-        row.classList.remove('nio-del-hidden')
-        const actions = actionsRowOf(row)
-        if (actions) injectDeleteButton(row, actions, item.seq)
-      }
+  // 防御：宿主端只返回真实用户消息（source.kind==='user'），数量应与界面
+  // 用户行一致；不一致说明数据源或渲染有偏差，宁可跳过本次配对也不错位。
+  if (userRows.length !== users.length) {
+    if (window.console) console.warn('[dsh-niao-quick-open] 用户消息列表与界面行数不一致（list=%d dom=%d），跳过注入', users.length, userRows.length)
+    return
+  }
+  for (let i = 0; i < userRows.length; i += 1) {
+    const row = userRows[i]
+    const item = users[i]
+    if (!item) continue
+    if (item.deleted) {
+      hideDeletedRegion(row)
+    } else {
+      row.classList.remove('nio-del-hidden')
+      const actions = actionsRowOf(row)
+      if (actions) injectDeleteButton(row, actions, item.seq)
     }
-    ui += 1
   }
 }
 
