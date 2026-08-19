@@ -1,7 +1,7 @@
 {
   "name": "dsh-niao-quick-open",
   "version": "0.5.0",
-  "description": "Workspace quick actions in the row menu (⋯): open in file manager / default editor, pick a default editor (auto-discovered). · DeepSeek Harness 工作区行菜单（⋯）快捷操作：文件管理器打开、常用编辑器打开、自动发现并设置常用编辑器。",
+  "description": "UI enhancement suite for DeepSeek Harness: one-click workspace open (Finder/editor), auto-discovered default editor, DeepSeek-web-style user-message nav rail, session to-do marks, flat-list polish, and hard restart. · DeepSeek Harness 界面增强插件：工作区一键打开、编辑器自动发现、用户消息导航条、会话待办标记、单列表增强与硬性重启。",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -40,7 +40,7 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md",
+    "README.en.md",
     "LICENSE"
   ],
   "dsh": {

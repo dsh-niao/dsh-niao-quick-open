@@ -1,88 +1,131 @@
 # dsh-niao-quick-open
 
-[English](README.md) | [中文](README.zh.md)
+[English](README.en.md) | [中文](README.md)
 
-Session-header quick actions for DeepSeek Harness.
+> DeepSeek Harness 界面增强插件：工作区一键打开、编辑器自动发现、DeepSeek 网页版同款用户消息导航条、会话待办标记、单列表增强、硬性重启。
 
-### Session header
+一个为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web 界面量身打造的效率增强插件，把工作区与会话的常用操作集中到指尖——无需离开页面，即可完成打开目录、切换视图、定位提问、重启服务等操作。
 
-The top-left of the session area becomes two rows:
+## ✨ 功能一览
 
-- **Row 1** — the current workspace folder name (small highlighted label) plus three icon buttons, with tooltips shown below each icon:
-  - 📋 **Copy absolute path**
-  - 📁 **Reveal in file manager** (Finder on macOS / Explorer on Windows / file manager on Linux)
-  - `</>` **Open in default editor**
-- **Row 2** — the current session name, enlarged.
+| 功能 | 说明 |
+| --- | --- |
+| 🚀 **会话顶部快捷按钮** | 会话区域顶部显示工作区文件夹名 + 三个图标按钮：复制绝对路径、在文件管理器中显示、用常用编辑器打开 |
+| 📁 **工作区菜单快捷操作** | 每个工作区「⋯」菜单底部提供一行快捷按钮（复制路径 / 访达显示 / 编辑器打开） |
+| 🧭 **用户消息导航条** | 复刻 DeepSeek 网页版：会话右侧悬浮标记每条用户提问，悬停看摘要、点击跳转、当前阅读位置高亮 |
+| ✅ **会话待办标记** | 空闲会话前显示可点击的标记圆点，一键标记为已完成 |
+| 📄 **单列表增强样式** | 单列表视图的会话卡片升级为三行布局（工作区名 / 最后一条对话预览 / 状态图标对齐） |
+| 🔀 **工作区栏头部增强** | 会话列表头部增加「切换分组方式」快捷图标（工作区 ⇄ 单列表一键切换） |
+| 🔄 **硬性重启** | 左下角一键重启 DSH 服务，二次确认 + 等待层 + 自动刷新页面 |
+| ⚙️ **分组设置面板** | 设置 → 界面功能：按「侧边栏 / 会话区域 / 系统工具」分组配置，即时生效 |
 
-### Conversation nav rail (right of the chat)
-
-Recreates the DeepSeek web interaction: once the current session has **≥ 2 user messages** and the transcript overflows one screen, a vertical pill floats on the right side of the conversation area (just left of the scrollbar), with one marker per user message:
-
-- **Hover a marker** — a summary card appears ("Question #N" title + truncated message text);
-- **Click a marker** — the transcript smooth-scrolls to that message;
-- The marker for the message you are currently reading is highlighted in the brand color — when you scroll between two questions, the previous one stays highlighted until the next question appears;
-- A badge at the bottom of the pill shows the total number of user messages;
-- The pill is **always visible** (no hover reveal/hide); scrolling / streaming only repositions markers and highlights without flicker.
-
-Controlled by the **User message nav rail** toggle under Settings → **UI Features** (enabled by default).
-
-### Restart button (bottom-left)
-
-A **restart** icon sits to the right of the Settings button in the bottom-left corner (grey semi-transparent by default, turns red on hover), with the tooltip "硬性重启" (hard restart). Clicking it asks for confirmation; once confirmed:
-
-- The host spawns a detached replacement process with the exact same command that started this one (waiting for the old process to exit and the port to free), then exits the current process completely;
-- The page shows a "正在重启 DeepSeek Harness…" overlay, probes the service every 700 ms and **auto-reloads once it is back**; if it does not come back within 30 s, it prompts you to refresh manually.
-
-### Settings: UI Features
-
-A new **UI Features** page is registered in the DSH Settings panel:
-
-- **Workspace quick buttons** — toggle whether the session-header row is shown (enabled by default), with its children:
-  - **Default editor** — a dropdown choosing the editor used by **Open in default editor**; applied instantly (no Save button).
-  - **Workspace menu quick actions** — toggle a row of quick buttons (copy path / reveal in file manager / open in default editor) inside each workspace's **⋯** menu (disabled by default).
-- **User message nav rail** — toggle whether the conversation nav rail on the right side of the chat is shown (enabled by default).
-- **Restart button** — toggle whether the bottom-left hard-restart button is shown (enabled by default).
-
-After changing a config that needs a restart to take effect, a "重启以生效" (restart to apply) banner appears at the top of the page; clicking it confirms and hard-restarts the service.
-
-Config is persisted to `~/.dsh/dsh-niao-quick-open.config.json`. If **Open in default editor** is clicked before a default editor is set, a hint directs you to Settings → UI Features → Workspace quick buttons.
-
-## Editor discovery
-
-Editors are scanned on the host:
-
-- **Known brands** — Visual Studio Code, Cursor, Trae, Windsurf, Zed, Sublime Text, HBuilderX, the JetBrains family, Vim/Neovim CLI, … (brand icon shown).
-- **Dynamic scan** — macOS scans `/Applications` + `/System/Applications`, Windows scans the Program Files / LocalAppData program directories, Linux probes common editor CLIs; any app matching editor keywords is offered with a letter icon.
-
-Every listed editor is guaranteed to have a working open command for the workspace folder.
-
-## Install
+## 🚀 安装
 
 ```sh
 dsh plugin --profile web add dsh-niao-quick-open
 ```
 
-Or add the package to your profile `package.json` `dependencies` and `dsh.profile.bundles`, then restart `dsh web`.
+或者把包加入你 profile 的 `package.json` `dependencies` 与 `dsh.profile.bundles`，然后重启 `dsh web`。
 
-## Usage
+## 📖 功能详情
 
-1. Open any workspace session: the session header's first row shows the workspace folder name and three icon buttons:
-   - Click 📋 to copy the workspace absolute path.
-   - Click 📁 to reveal the folder in the file manager.
-   - Click `</>` to open the folder in your default editor.
-2. The second row shows the current session name, enlarged.
-3. In DSH Settings → **UI Features**, toggle **Workspace quick buttons** and choose the **Default editor**.
-4. Use the **restart** icon next to the bottom-left Settings button to hard-restart the DeepSeek Harness service (confirmation required; the page reloads automatically afterwards).
-5. Use the conversation nav rail on the right of the chat: hover a marker to preview a question, click to jump to it.
+### 会话区域顶部
 
-## Development
+会话区域顶部左上角改为两行：
+
+- **第一行**：当前工作区文件夹名称（小字高亮标签）+ 三个图标按钮，悬停提示显示在图标下方：
+  - 📋 复制绝对路径
+  - 📁 在文件管理器中显示（macOS 访达 / Windows 资源管理器 / Linux 文件管理器）
+  - `</>` 使用常用编辑器打开
+- **第二行**：当前会话名称（放大字号）
+
+### 会话右侧：用户消息导航条
+
+复刻 DeepSeek 网页版交互：当本会话用户消息 **≥ 2 条**且内容超过一屏时，对话区域右侧（紧贴滚动条左侧）悬浮一条竖直胶囊面板，每条用户消息对应一个标记：
+
+- **悬停标记**：弹出摘要卡片（「第 N 条提问」标题 + 消息正文截断摘要）；
+- **点击标记**：对话区平滑滚动到该消息附近；
+- 当前阅读位置对应的用户消息标记高亮为品牌色（滚动到两条提问之间时，上一条提问仍保持高亮，直到下一条提问出现），随时定位阅读位置；
+- 面板底部显示用户消息总数徽标；
+- 面板**常驻显示**（不随鼠标显隐），滚动 / 流式输出时仅重定位标记与高亮，不闪烁。
+
+受「界面功能 → 用户消息导航条」开关控制（默认开启）。
+
+### 工作区「⋯」菜单快捷操作
+
+开启后，每个工作区「⋯」菜单底部多出一行快捷按钮：复制路径、在文件管理器中显示、用常用编辑器打开。
+
+### 会话待办标记
+
+空闲会话前显示一个可点击的标记圆点：点击标记为已完成（变绿），再次点击取消；切换会话时自动取消待办。标记状态保存在浏览器本地，不占用服务配置。
+
+### 单列表增强样式
+
+开启后，「分组方式 → 单列表」中的会话列表使用三行布局：
+
+- 第一行：原生状态图标 + 工作区文件夹名 + 最后用户消息的相对时间；
+- 第二行：会话标题；
+- 第三行：浅色小字展示用户最后一条对话（单行省略）。
+
+### 工作区栏头部增强
+
+在工作区/会话列表头部（搜索、分组方式、排序方式所在行）额外添加一个「切换分组方式」快捷图标，点击即可在工作区 ⇄ 单列表间切换，并带悬浮提示。
+
+### 左下角：硬性重启按钮
+
+在界面左下角设置按钮的最右侧新增一个 **重启** 图标按钮（默认灰色半透明，悬停变红），悬停提示「硬性重启」。点击后弹出二次确认框，确认后：
+
+- 插件宿主端会以**当前进程相同的命令**拉起一个脱离终端的新实例（等待旧进程退出、端口释放后启动），然后彻底退出当前进程；
+- 前台页面显示「正在重启 DeepSeek Harness…」等待层，每 700ms 探测一次服务，**恢复后自动刷新页面**；若 30 秒内未恢复，提示手动刷新。
+
+## ⚙️ 设置：界面功能
+
+在 DSH 设置面板左侧边注册「界面功能」页，按功能区域分组，每个配置项提供一句话说明 + 可展开的详细说明：
+
+### 侧边栏
+
+- **单列表增强样式**（默认开启）：单列表视图的三行会话卡片样式；
+- **工作区栏头部增强**（默认关闭）：会话列表头部增加「切换分组方式」图标；
+- **会话待办标记**（默认关闭）：空闲会话前显示可点击的待办圆点。
+
+### 会话区域
+
+- **常用编辑器**（独立配置项）：「常用编辑器中打开」使用的编辑器，选择后立即生效；
+- **工作区快捷按钮**（默认开启）：会话区域顶部的文件夹名与快捷按钮；
+  - 子项 **工作区行菜单快捷按钮**（默认关闭）：工作区「⋯」菜单中的一行快捷按钮；
+- **用户消息导航条**（默认开启）：会话右侧的用户消息标记条。
+
+### 系统工具
+
+- **重启按钮**（默认开启）：左下角设置按钮旁的「硬性重启」按钮。
+
+配置即时保存（无需确认按钮），持久化到 `~/.dsh/dsh-niao-quick-open.config.json`。进行需要重启才能生效的配置修改后，页面顶部会出现「重启以生效」横幅。
+
+## 🔍 编辑器发现
+
+编辑器由宿主端扫描：
+
+- **已知品牌**——Visual Studio Code、Cursor、Trae、Windsurf、Zed、Sublime Text、HBuilderX、JetBrains 系列、Vim/Neovim CLI 等（显示品牌图标）；
+- **动态扫描**——macOS 扫描 `/Applications` + `/System/Applications`，Windows 扫描 Program Files / LocalAppData 程序目录，Linux 探测常见编辑器 CLI；凡命中编辑器关键词的应用都会以字母图标形式列出。
+
+列出的每个编辑器都保证能生成有效的打开命令来打开工作区文件夹。
+
+## 💡 使用提示
+
+1. 打开任意工作区会话，会话区域顶部第一行显示工作区文件夹名与三个图标按钮：📋 复制绝对路径、📁 在文件管理器中显示、`</>` 用常用编辑器打开；
+2. 第二行显示当前会话名称（放大字号）；
+3. 在 DSH 设置 → **界面功能** 中可开关各项功能、配置「常用编辑器」；
+4. 左下角设置按钮右侧的 **重启** 图标可硬性重启 DSH 服务（有二次确认，重启后页面自动刷新）；
+5. 会话右侧的用户消息导航条：悬停查看提问摘要，点击跳转到对应提问。
+
+## 🛠 开发
 
 ```sh
 npm install
-npm run build   # build the browser bundle into lib/client.js
-npm run check   # syntax-check host + build script
+npm run build   # 构建浏览器 bundle 到 lib/client.js
+npm run check   # 语法检查宿主端与构建脚本
 ```
 
-## License
+## 📄 许可证
 
-MIT
+[MIT](LICENSE)
