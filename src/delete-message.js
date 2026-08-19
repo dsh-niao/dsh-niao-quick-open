@@ -119,8 +119,8 @@ function applyDeleteButtons(sessionId, items) {
   if (!sessionId || !Array.isArray(items) || items.length === 0) return
   const users = items.filter((item) => item.role === 'user')
   const assistants = items.filter((item) => item.role === 'assistant')
+  // 用户消息：内容行（user）内部就带操作按钮行（复制按钮所在行）。
   const userRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="user"]'))
-  const assistantRows = Array.from(document.querySelectorAll('[data-chat-flow-kind="assistant-step"]'))
   let ui = 0
   for (const row of userRows) {
     if (ui >= users.length) break
@@ -129,13 +129,34 @@ function applyDeleteButtons(sessionId, items) {
     injectDeleteButton(row, actions, users[ui].seq, 'user')
     ui += 1
   }
-  let ai = 0
-  for (const row of assistantRows) {
-    if (ai >= assistants.length) break
-    const actions = actionsRowOf(row)
+  // 大模型回复：内容行（assistant-step）与操作按钮行（turn-tail）是
+  // 两个独立 flowItem——复制/赞同/反对/分享等按钮在 turn-tail 节点里，
+  // 每个 turn 结束后只渲染一条。按钮必须注入到 turn-tail 的操作行。
+  injectAssistantDeleteButtons(assistants)
+}
+
+/**
+ * 为大模型回复注入删除按钮。
+ * 按 DOM 顺序遍历 flowItem：每遇到一个 assistant-step 递增 stepIndex
+ * （与 surface assistants 数组按序一一对应）；遇到 turn-tail 时，它归属
+ * 「前面最近的那个 assistant-step」（当前 stepIndex），在其操作行内注入。
+ * 正在生成中的回复（turn 未结束）没有 turn-tail，自然不注入。
+ */
+function injectAssistantDeleteButtons(assistants) {
+  if (!Array.isArray(assistants) || assistants.length === 0) return
+  const flowItems = Array.from(document.querySelectorAll('[data-chat-flow-kind]'))
+  let stepIndex = -1
+  for (const item of flowItems) {
+    const kind = item.getAttribute('data-chat-flow-kind')
+    if (kind === 'assistant-step') {
+      stepIndex += 1
+      continue
+    }
+    if (kind !== 'turn-tail') continue
+    if (stepIndex < 0 || stepIndex >= assistants.length) continue
+    const actions = actionsRowOf(item)
     if (!actions) continue
-    injectDeleteButton(row, actions, assistants[ai].seq, 'assistant')
-    ai += 1
+    injectDeleteButton(item, actions, assistants[stepIndex].seq, 'assistant')
   }
 }
 
