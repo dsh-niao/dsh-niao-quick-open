@@ -3,10 +3,13 @@
  *
  * 在 DSH 设置面板左侧边注册「界面功能」设置页（settings.section）：
  *  - 顶部「温馨提示」固定横幅（始终渲染，dirty 时显示「重启以生效」按钮）；
- *  - 「工作区快捷按钮」开关 + 子项「常用编辑器」选择 + 子项「工作区行菜单
- *    快捷按钮」开关；
- *  - 「会话待办标记」开关（与「工作区快捷按钮」同级）；
- *  - 「重启按钮」开关（控制左下角重启按钮是否显示）。
+ *  - 分组标题按功能区域划分：侧边栏（单列表增强样式 / 工作区栏头部增强 /
+ *    会话待办标记）→ 会话区域（常用编辑器 / 工作区快捷按钮 + 子项工作区行
+ *    菜单快捷按钮 / 用户消息导航条）→ 系统工具（重启按钮）；
+ *  - 「常用编辑器」为独立配置项（不再随「工作区快捷按钮」禁用——编辑器被
+ *    会话顶部按钮与工作区菜单按钮共用）；
+ *  - 每个配置项默认只显示一句话概要，右侧「详情」展开按钮点击后显示
+ *    分段详细说明，再点收起。
  * 配置即时保存（set-config 即时生效），无确认按钮。纯 React（React.createElement）。
  *
  * @module dsh-niao-quick-open/client/settings
@@ -17,6 +20,41 @@ import { rpc } from './utils.js'
 import { configBaseline, setConfigBaseline } from './state.js'
 import { applyConfigPatch, configDirty } from './config.js'
 import { showRestartConfirm } from './restart.js'
+
+/** 展开/收起图标（12px chevron，旋转动画由 CSS 控制）。 */
+function chevronSvg() {
+  return React.createElement('svg', {
+    width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round',
+  },
+    React.createElement('path', { d: 'm6 9 6 6 6-6' }),
+  )
+}
+
+/**
+ * 配置项说明：默认一行概要；「详情」按钮展开后显示分段详细说明。
+ * @param {string} summary 一句话概要（始终显示）。
+ * @param {Array<string>} details 详细分段说明（展开后显示，每段一个 <p>）。
+ */
+function DescExpandable({ summary, details }) {
+  const [open, setOpen] = React.useState(false)
+  const hasDetails = Array.isArray(details) && details.length > 0
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'nio-settings-desc-line' },
+      React.createElement('span', { className: 'nio-settings-desc-summary' }, summary),
+      hasDetails && React.createElement('button', {
+        type: 'button',
+        className: 'nio-settings-desc-more',
+        'aria-expanded': open,
+        'aria-label': open ? '收起详情' : '展开详情',
+        onClick: () => setOpen(!open),
+      }, chevronSvg()),
+    ),
+    open && hasDetails && React.createElement('div', { className: 'nio-settings-desc-detail' },
+      details.map((d, i) => React.createElement('p', { key: i }, d)),
+    ),
+  )
+}
 
 /** 配置面板：即时保存，无确认按钮。 */
 export function ConfigPanel() {
@@ -89,12 +127,117 @@ export function ConfigPanel() {
         }, '重启以生效'),
       ),
     ),
-    // 「工作区快捷按钮」组：开关 + 其子项「常用编辑器」（缩进）。
+
+    // ▍侧边栏
+    React.createElement('div', { className: 'nio-settings-section' }, '侧边栏'),
+    // 单列表增强样式
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '单列表增强样式'),
+          React.createElement(DescExpandable, {
+            summary: '单列表视图的三行会话卡片样式',
+            details: [
+              '开启后，分组方式 → 单列表 中的会话列表使用三行布局：工作区名称、最后一条对话预览、状态图标对齐。',
+              '关闭则使用系统原生单列表样式。',
+            ],
+          }),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.flatListStyle,
+            onChange: (e) => save({ flatListStyle: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
+    // 工作区栏头部增强
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '工作区栏头部增强'),
+          React.createElement(DescExpandable, {
+            summary: '会话列表头部增加「切换分组方式」图标',
+            details: [
+              '在工作区/会话列表头部（搜索、分组方式、排序方式所在行）额外添加一个快捷图标，点击即可在工作区 ⇄ 单列表间切换，并带悬浮提示。',
+              '原有图标保持不变；关闭则恢复原样。',
+            ],
+          }),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.headerViewSwitches,
+            onChange: (e) => save({ headerViewSwitches: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
+    // 会话待办标记
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '会话待办标记'),
+          React.createElement(DescExpandable, {
+            summary: '空闲会话前显示可点击的待办圆点',
+            details: [
+              '开启后，空闲会话前出现一个圆点，点击即可标记为已完成（绿色）；再次点击取消。',
+              '切换会话时自动取消待办标记。',
+            ],
+          }),
+        ),
+        React.createElement('label', { className: 'nio-settings-toggle' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!state.sessionDoneMark,
+            onChange: (e) => save({ sessionDoneMark: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
+        ),
+      ),
+    ),
+
+    // ▍会话区域
+    React.createElement('div', { className: 'nio-settings-section' }, '会话区域'),
+    // 常用编辑器（独立项，不再随「工作区快捷按钮」禁用）
+    React.createElement('div', { className: 'nio-settings-group' },
+      React.createElement('div', { className: 'nio-settings-row' },
+        React.createElement('div', { className: 'nio-settings-text' },
+          React.createElement('div', { className: 'nio-settings-title' }, '常用编辑器'),
+          React.createElement(DescExpandable, {
+            summary: '「常用编辑器中打开」使用的编辑器',
+            details: [
+              '选择后立即生效（无需保存）。',
+              '该编辑器被「工作区快捷按钮」与「工作区行菜单快捷按钮」两处「编辑器打开」共用。',
+              '未设置时点击「编辑器打开」会提示前往设置。',
+            ],
+          }),
+        ),
+        React.createElement('select', {
+          className: 'nio-settings-select',
+          value: state.editor || '',
+          onChange: (e) => save({ editor: e.target.value }),
+        },
+        React.createElement('option', { value: '', key: '' }, '未设置'),
+        editors.map((ed) => React.createElement('option', { value: ed.id, key: ed.id }, ed.name || ed.id)),
+        ),
+      ),
+    ),
+    // 工作区快捷按钮（含子项：工作区行菜单快捷按钮）
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
         React.createElement('div', { className: 'nio-settings-text' },
           React.createElement('div', { className: 'nio-settings-title' }, '工作区快捷按钮'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '在会话区域顶部显示工作区文件夹名与快捷操作按钮（复制路径 / 访达显示 / 编辑器打开）'),
+          React.createElement(DescExpandable, {
+            summary: '会话区域顶部的文件夹名与快捷按钮',
+            details: [
+              '在会话区域顶部第一行显示工作区文件夹名，以及三个图标按钮：复制绝对路径、在文件管理器中显示、用常用编辑器打开。',
+              '关闭后不显示该行（会话名仍正常显示）。',
+            ],
+          }),
         ),
         React.createElement('label', { className: 'nio-settings-toggle' },
           React.createElement('input', {
@@ -105,27 +248,17 @@ export function ConfigPanel() {
           React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
         ),
       ),
-      // 子项：常用编辑器（随主开关禁用）
-      React.createElement('div', { className: 'nio-settings-sub' },
-        React.createElement('div', { className: 'nio-settings-text' },
-          React.createElement('div', { className: 'nio-settings-title' }, '常用编辑器'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '「常用编辑器中打开」使用的编辑器，选择后立即生效'),
-        ),
-        React.createElement('select', {
-          className: 'nio-settings-select',
-          value: state.editor || '',
-          disabled: !state.enabled,
-          onChange: (e) => save({ editor: e.target.value }),
-        },
-        React.createElement('option', { value: '', key: '' }, '未设置'),
-        editors.map((ed) => React.createElement('option', { value: ed.id, key: ed.id }, ed.name || ed.id)),
-        ),
-      ),
       // 子项：工作区行菜单快捷按钮（随主开关禁用）
       React.createElement('div', { className: 'nio-settings-sub' },
         React.createElement('div', { className: 'nio-settings-text' },
           React.createElement('div', { className: 'nio-settings-title' }, '工作区行菜单快捷按钮'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '在工作区「⋯」菜单中展示一行快捷按钮（复制路径 / 访达显示 / 编辑器打开）'),
+          React.createElement(DescExpandable, {
+            summary: '工作区「⋯」菜单中的一行快捷按钮',
+            details: [
+              '开启后，每个工作区的「⋯」菜单底部多出一行按钮：复制路径、在文件管理器中显示、用常用编辑器打开。',
+              '随「工作区快捷按钮」总开关联动（主开关关闭时不可用）。',
+            ],
+          }),
         ),
         React.createElement('label', { className: 'nio-settings-toggle' },
           React.createElement('input', {
@@ -138,63 +271,19 @@ export function ConfigPanel() {
         ),
       ),
     ),
-    // 「会话待办标记」组（与「工作区快捷按钮」同级）：空闲会话前的标记圆点开关。
-    React.createElement('div', { className: 'nio-settings-group' },
-      React.createElement('div', { className: 'nio-settings-row' },
-        React.createElement('div', { className: 'nio-settings-text' },
-          React.createElement('div', { className: 'nio-settings-title' }, '会话待办标记'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '在空闲会话前显示可点击的标记圆点，将其标记为已完成'),
-        ),
-        React.createElement('label', { className: 'nio-settings-toggle' },
-          React.createElement('input', {
-            type: 'checkbox',
-            checked: !!state.sessionDoneMark,
-            onChange: (e) => save({ sessionDoneMark: e.target.checked }),
-          }),
-          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
-        ),
-      ),
-    ),
-    // 「单列表增强样式」组（与「工作区快捷按钮」同级）：单列表视图会话卡样式开关。
-    React.createElement('div', { className: 'nio-settings-group' },
-      React.createElement('div', { className: 'nio-settings-row' },
-        React.createElement('div', { className: 'nio-settings-text' },
-          React.createElement('div', { className: 'nio-settings-title' }, '单列表增强样式'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，单列表视图（分组方式 → 单列表）中的会话列表使用本插件开发的三行样式（工作区名称、最后一条对话预览、状态图标对齐等）；关闭则使用系统原生单列表样式'),
-        ),
-        React.createElement('label', { className: 'nio-settings-toggle' },
-          React.createElement('input', {
-            type: 'checkbox',
-            checked: !!state.flatListStyle,
-            onChange: (e) => save({ flatListStyle: e.target.checked }),
-          }),
-          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
-        ),
-      ),
-    ),
-    // 「工作区栏头部增强」组（与「单列表增强样式」同级）：会话列表头部图标调整开关。
-    React.createElement('div', { className: 'nio-settings-group' },
-      React.createElement('div', { className: 'nio-settings-row' },
-        React.createElement('div', { className: 'nio-settings-text' },
-          React.createElement('div', { className: 'nio-settings-title' }, '工作区栏头部增强'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，工作区/会话列表头部（搜索、分组方式、排序方式、新增项目所在行）保持原有图标不变，额外添加一个「切换分组方式」快捷图标（按工作区 ⇄ 单列表），点击直接切换并带悬浮提示；关闭则恢复原样'),
-        ),
-        React.createElement('label', { className: 'nio-settings-toggle' },
-          React.createElement('input', {
-            type: 'checkbox',
-            checked: !!state.headerViewSwitches,
-            onChange: (e) => save({ headerViewSwitches: e.target.checked }),
-          }),
-          React.createElement('span', { className: 'nio-settings-toggle-track' }, null),
-        ),
-      ),
-    ),
-    // 「用户消息导航条」组（与「单列表增强样式」同级）：会话右侧用户消息导航条开关。
+    // 用户消息导航条
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
         React.createElement('div', { className: 'nio-settings-text' },
           React.createElement('div', { className: 'nio-settings-title' }, '用户消息导航条'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，会话聊天区域右侧显示本会话的用户消息导航条：每条用户消息一个标记，悬停查看提问摘要、点击跳转（复刻 DeepSeek 网页版样式）；用户消息少于两条或内容未超一屏时不显示'),
+          React.createElement(DescExpandable, {
+            summary: '会话右侧的用户消息标记条',
+            details: [
+              '开启后，会话聊天区域右侧显示本会话用户消息导航条：每条用户消息一个圆点，悬停查看提问摘要、点击跳转。',
+              '当前阅读位置的圆点高亮为品牌色。',
+              '用户消息少于两条或内容未超一屏时不显示。',
+            ],
+          }),
         ),
         React.createElement('label', { className: 'nio-settings-toggle' },
           React.createElement('input', {
@@ -206,12 +295,21 @@ export function ConfigPanel() {
         ),
       ),
     ),
-    // 「重启按钮」组（与「工作区快捷按钮」同级）：开关控制左下角按钮是否显示。
+
+    // ▍系统工具
+    React.createElement('div', { className: 'nio-settings-section' }, '系统工具'),
+    // 重启按钮
     React.createElement('div', { className: 'nio-settings-group' },
       React.createElement('div', { className: 'nio-settings-row' },
         React.createElement('div', { className: 'nio-settings-text' },
           React.createElement('div', { className: 'nio-settings-title' }, '重启按钮'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '在界面左下角设置按钮右侧显示「硬性重启」按钮'),
+          React.createElement(DescExpandable, {
+            summary: '左下角设置按钮旁的「硬性重启」按钮',
+            details: [
+              '开启后，界面左下角设置按钮右侧显示重启图标。',
+              '点击后弹出二次确认，确认后以相同命令重启 DeepSeek Harness 服务，页面自动恢复。',
+            ],
+          }),
         ),
         React.createElement('label', { className: 'nio-settings-toggle' },
           React.createElement('input', {

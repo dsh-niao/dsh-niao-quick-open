@@ -144,6 +144,8 @@ export const CSS = `
 .nio-settings-banner-warn .nio-settings-banner-text{color:var(--dsw-alias-label-primary);font-weight:500}
 .nio-settings-banner-btn{box-sizing:border-box;flex:none;height:30px;padding:0 14px;border:none;border-radius:8px;background:var(--dsw-alias-state-business-primary);color:#fff;font-size:13px;line-height:30px;font-family:inherit;cursor:pointer;white-space:nowrap}
 .nio-settings-banner-btn:hover{opacity:.9}
+.nio-settings-section{margin-top:22px;color:var(--dsw-alias-label-tertiary);font-size:12px;font-weight:600;line-height:18px;letter-spacing:.04em}
+.nio-settings-section:first-child{margin-top:0}
 .nio-settings-group{display:flex;flex-direction:column}
 .nio-settings-row{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);align-items:center;gap:16px;padding:16px 0;display:flex}
 .nio-settings-group > .nio-settings-row{border-bottom:none}
@@ -152,7 +154,17 @@ export const CSS = `
 .nio-settings-sub::before{content:"";flex:none;width:2px;align-self:stretch;background:var(--dsw-alias-border-l2);border-radius:1px;margin-right:12px}
 .nio-settings-text{flex:1;min-width:0}
 .nio-settings-title{color:var(--dsw-alias-label-primary);font-size:14px;font-weight:500;line-height:22px}
+/* 配置项说明：一句话概要 + 「详情」展开按钮 + 详细分段说明（展开后显示） */
 .nio-settings-desc{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;margin-top:2px}
+.nio-settings-desc-line{display:flex;align-items:center;gap:6px;margin-top:2px}
+.nio-settings-desc-summary{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
+.nio-settings-desc-more{flex:none;border:none;background:transparent;padding:0 2px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;opacity:.8}
+.nio-settings-desc-more:hover{color:var(--dsw-alias-label-primary);opacity:1;background:var(--dsw-alias-interactive-bg-hover)}
+.nio-settings-desc-more svg{display:block;width:12px;height:12px;transition:transform .18s ease}
+.nio-settings-desc-more[aria-expanded="true"] svg{transform:rotate(180deg)}
+.nio-settings-desc-detail{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:20px;margin-top:6px;padding:8px 10px;background:var(--dsw-alias-interactive-bg-hover);border-radius:8px}
+.nio-settings-desc-detail p{margin:0 0 4px}
+.nio-settings-desc-detail p:last-child{margin-bottom:0}
 .nio-settings-toggle{position:relative;cursor:pointer;width:36px;height:20px;flex:none}
 .nio-settings-toggle input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
 .nio-settings-toggle-track{box-sizing:border-box;display:block;width:36px;height:20px;border-radius:999px;background:var(--dsw-alias-border-l3);transition:background .15s ease;position:relative}
