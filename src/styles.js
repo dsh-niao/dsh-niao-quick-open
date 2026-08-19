@@ -202,16 +202,23 @@ export const CSS = `
 .nio-reboot-text{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
 /* 会话右侧「用户消息导航条」：复刻 DeepSeek 网页版悬浮显示条（fixed 在 body 下，随主题变量切换）。
    面板常驻显示（不随鼠标显隐）：毛玻璃 + 圆角胶囊 + 内高光，随亮/暗主题切换；
-   标记为圆点，面板高度由内部节点自然撑开（flex 罗列）；当前视口内的消息标记高亮为品牌色；
+   标记为圆点、每个圆点位于一个盒子中（盒子纵向紧密排列、无间距，hover 盒子即 hover 圆点）；
+   面板高度由内部盒子自然撑开；当前阅读位置的用户消息标记高亮为品牌色
+   （滚动到两条提问之间时，上一条提问仍保持高亮，直到下一条提问出现）；
    悬停出摘要卡、点击跳转；底部显示用户消息总数徽标。 */
-.nio-nav{position:fixed;z-index:2147483000;box-sizing:border-box;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:9px;padding:11px 0 9px;background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 66%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid color-mix(in srgb,var(--dsw-alias-border-l2,rgba(127,127,127,.35)) 75%,transparent);box-shadow:0 1px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.06);opacity:.5;transition:opacity 160ms ease}
-.nio-nav:hover{opacity:1}
-.nio-nav-marker{box-sizing:border-box;flex:none;border:0;border-radius:50%;padding:0;margin:0;cursor:pointer;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-label-primary,#888) 42%,transparent);opacity:.85;transition:opacity 120ms ease,transform 120ms ease,background 120ms ease}
-.nio-nav-marker:hover{opacity:1;transform:scale(1.55);background:var(--dsw-alias-label-primary,#888)}
-.nio-nav-marker-active{background:var(--dsw-alias-state-business-primary,#4d6bfe);opacity:1;transform:scale(1.3)}
-.nio-nav-marker-active:hover{transform:scale(1.55)}
+.nio-nav{position:fixed;z-index:2147483000;box-sizing:border-box;border-radius:999px;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:10px 0 8px;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid transparent;box-shadow:none;opacity:.55;transition:opacity 160ms ease,background 160ms ease,border-color 160ms ease,box-shadow 160ms ease}
+/* hover 时显示毛玻璃胶囊：背景、边框、阴影、模糊一并出现 */
+.nio-nav:hover{opacity:1;background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 40%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:color-mix(in srgb,var(--dsw-alias-border-l2,rgba(127,127,127,.35)) 60%,transparent);box-shadow:0 1px 6px rgba(0,0,0,.06),inset 0 1px 0 rgba(255,255,255,.1)}
+/* 标记盒子：整块纵向排列（无间距），撑满面板宽度；圆点由 ::before 绘制并居中。
+   hover 盒子任意位置（含圆点四周）即视为 hover 到该消息。 */
+.nio-nav-marker{box-sizing:border-box;width:100%;height:var(--nio-box-h,20px);flex:none;border:0;padding:0;margin:0;cursor:pointer;pointer-events:auto;background:transparent;display:flex;align-items:center;justify-content:center}
+.nio-nav-marker::before{content:"";box-sizing:border-box;width:6px;height:6px;border-radius:50%;background:color-mix(in srgb,var(--dsw-alias-label-primary,#888) 42%,transparent);opacity:.85;transition:opacity 120ms ease,transform 120ms ease,background 120ms ease}
+.nio-nav-marker:hover::before{opacity:1;transform:scale(1.45);background:var(--dsw-alias-label-primary,#888)}
+.nio-nav-marker-active::before{background:var(--dsw-alias-state-business-primary,#4d6bfe);opacity:1;transform:scale(1.3)}
+/* 高亮（当前阅读位置）圆点被 hover 时：保持品牌亮色，仅轻微放大 */
+.nio-nav-marker-active:hover::before{transform:scale(1.35);background:var(--dsw-alias-state-business-primary,#4d6bfe);opacity:1}
 .nio-nav-count{margin-top:2px;text-align:center;font-size:9px;line-height:1;font-weight:600;color:var(--dsw-alias-label-tertiary,#999);pointer-events:none;user-select:none}
-.nio-nav-tip{position:fixed;z-index:2147483100;max-width:300px;max-height:220px;overflow:hidden;border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#eee);background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 94%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;user-select:none;opacity:0;transition:opacity 120ms ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-nav-tip{position:fixed;z-index:2147483100;max-width:300px;max-height:220px;overflow:hidden;border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#eee);background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 78%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid color-mix(in srgb,var(--dsw-alias-border-l2,rgba(127,127,127,.35)) 70%,transparent);box-shadow:0 2px 8px rgba(0,0,0,.1);pointer-events:none;user-select:none;opacity:0;transition:opacity 120ms ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .nio-nav-tip-title{display:block;font-weight:600;margin-bottom:4px;color:var(--dsw-alias-state-business-primary,#bbb)}
 .nio-nav-tip-body{display:block;white-space:pre-wrap;word-break:break-word}
 `

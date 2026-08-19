@@ -3,10 +3,12 @@
  *
  * 复刻 DeepSeek 网页版交互：当本会话用户消息 ≥ 2 条且内容超过一屏时，
  * 在对话区域右侧（紧贴滚动条左侧）**常驻**悬浮一条竖直胶囊面板，每条
- * 用户消息对应一个标记圆点（flex 自然罗列，面板高度由节点撑开）：
+ * 用户消息对应一个标记圆点：圆点位于一个盒子中，盒子纵向紧密排列
+ * （无间距，hover 盒子任意位置即视为 hover 该消息），面板高度由盒子撑开：
  *  - 悬停标记：弹出摘要卡片（「第 N 条提问」标题 + 消息正文截断摘要）；
  *  - 点击标记：对话区平滑滚动到该消息附近；
- *  - 当前视口内的消息标记高亮为品牌色（定位当前阅读位置）；
+ *  - 当前阅读位置对应的用户消息标记高亮为品牌色：滚动到两条提问之间时
+ *    上一条提问仍保持高亮（直到下一条提问出现），随时定位阅读位置；
  *  - 面板底部显示用户消息总数徽标；
  *  - 面板常驻显示（不随鼠标靠近/离开显隐），滚动 / 流式输出时只重定位
  *    标记与高亮，不闪烁。
@@ -30,7 +32,12 @@ const MIN_USER_MESSAGES = 2
 
 /* 面板外观与交互参数 */
 const PANEL_WIDTH = 24
-const MARKER_SIZE = 7
+/** 圆点所在盒子（hover 热区）的最大 / 最小高度。 */
+const BOX_MAX_HEIGHT = 20
+const BOX_MIN_HEIGHT = 5
+/** 面板最大高度：视口高度的比例上限与绝对上限（消息极多时压缩盒子并封顶）。 */
+const MAX_PANEL_RATIO = 0.55
+const MAX_PANEL_HEIGHT = 520
 const RIGHT_MARGIN = 10
 const SUMMARY_MAX_CHARS = 200
 const SCROLL_PADDING = 12
@@ -54,6 +61,45 @@ function hasOverflow(scrollHeight, clientHeight) {
 /** 跳转目标：把行顶滚到视口上方预留 padding 处。 */
 function scrollTarget(contentTop, padding) {
   return Math.max(0, contentTop - padding)
+}
+
+/**
+ * 自定义快速平滑滚动（比浏览器原生 smooth 更快）：ease-out 插值。
+ * 时长随距离自适应（160–320ms）；动画期间用户主动滚动（滚轮/触摸）立即取消。
+ * @param {HTMLElement} scrollport 滚动容器。
+ * @param {number} target 目标 scrollTop。
+ */
+function animateScrollTo(scrollport, target) {
+  const start = scrollport.scrollTop
+  const delta = target - start
+  if (Math.abs(delta) < 1) return
+  // 短距离快速完成，长距离适当延长但封顶 320ms（原生 smooth 通常更慢）。
+  const duration = Math.min(320, Math.max(160, Math.abs(delta) * 0.5))
+  const startTime = performance.now()
+  let raf = 0
+  let cancelled = false
+  const cancel = () => {
+    cancelled = true
+    scrollport.removeEventListener('wheel', cancel)
+    scrollport.removeEventListener('touchstart', cancel)
+    if (raf !== 0) cancelAnimationFrame(raf)
+  }
+  const step = (now) => {
+    const t = Math.min(1, (now - startTime) / duration)
+    // ease-out cubic：开头快、结尾缓。
+    const eased = 1 - Math.pow(1 - t, 3)
+    scrollport.scrollTop = start + delta * eased
+    if (t < 1 && !cancelled) {
+      raf = requestAnimationFrame(step)
+    } else {
+      scrollport.removeEventListener('wheel', cancel)
+      scrollport.removeEventListener('touchstart', cancel)
+    }
+  }
+  // 用户滚动打断：wheel / touchstart 触发即停止本动画，避免抢滚轮。
+  scrollport.addEventListener('wheel', cancel, { passive: true })
+  scrollport.addEventListener('touchstart', cancel, { passive: true })
+  raf = requestAnimationFrame(step)
 }
 
 /** 界面语言检测：zh 前缀视为中文，其余英文。 */
@@ -217,22 +263,37 @@ export class Rail {
     }
     this.overlay.style.display = 'flex'
     this.overlay.style.left = (rect.right - scrollbarWidth - RIGHT_MARGIN - PANEL_WIDTH) + 'px'
+    // 盒子高度：优先固定 BOX_MAX_HEIGHT（面板由盒子撑开）；消息过多时压缩
+    // 盒子高度并封顶面板，避免面板超高。通过 CSS 变量交给每个盒子使用。
+    const total = this.rows.length
+    const maxPanel = Math.min(MAX_PANEL_HEIGHT, Math.max(0, rect.height) * MAX_PANEL_RATIO)
+    const boxHeight = Math.min(BOX_MAX_HEIGHT, Math.max(BOX_MIN_HEIGHT, (maxPanel - 24) / total))
+    this.overlay.style.setProperty('--nio-box-h', boxHeight + 'px')
     this.overlay.replaceChildren(...this.buildMarkers())
-    // 高度由内部节点撑开：先渲染再测量，实现垂直居中。
+    // 高度由内部节点（盒子 + 徽标）撑开：先渲染再测量，实现垂直居中。
     const panelHeight = this.overlay.offsetHeight
     this.overlay.style.top = (rect.top + Math.max(0, (rect.height - panelHeight) / 2)) + 'px'
   }
 
-  /** 构建全部标记（自然罗列 + 当前视口高亮）+ 底部总数徽标。 */
+  /** 构建全部标记（自然罗列 + 当前阅读位置高亮）+ 底部总数徽标。 */
   buildMarkers() {
     const scrollport = this.scrollport
-    const viewTop = scrollport.scrollTop
-    const viewBottom = viewTop + scrollport.clientHeight
+    const viewBottom = scrollport.scrollTop + scrollport.clientHeight
     const total = this.rows.length
+    // 高亮目标：最后一条「顶部已进入视口」的用户消息（含刚滚出视口顶部
+    // 的）——滚动到 A、B 两条提问之间时，A 已滚出但 B 尚未出现，此时仍
+    // 高亮 A（正在读 A 之后的回答），直到 B 顶部进入视口才切换为 B。
+    // rows 按 DOM 顺序收集（top 升序），一旦行顶超过视口底部即可停止。
+    let activeRow = null
+    for (const row of this.rows) {
+      if (row.top <= viewBottom + 4) activeRow = row
+      else break
+    }
+    // 视口内/上方没有任何用户消息（内容极短等极端情况）时兜底第一条。
+    if (activeRow === null) activeRow = this.rows[0]
     const nodes = this.rows.map((row) => {
       const marker = this.buildMarker(row)
-      // 当前视口内可见的用户消息 → 标记高亮（品牌色），定位阅读位置。
-      if (row.top >= viewTop - 4 && row.top <= viewBottom + 4) marker.classList.add('nio-nav-marker-active')
+      if (row === activeRow) marker.classList.add('nio-nav-marker-active')
       return marker
     })
     const count = document.createElement('span')
@@ -242,7 +303,7 @@ export class Rail {
     return nodes
   }
 
-  /** 构建单个标记：flex 流内自然罗列（间距由 CSS gap 控制），点击平滑跳转。 */
+  /** 构建单个标记盒子：纵向紧密排列（无间距），整块可 hover / 点击跳转。 */
   buildMarker(row) {
     const scrollport = this.scrollport
     const marker = document.createElement('button')
@@ -250,11 +311,11 @@ export class Rail {
     marker.className = 'nio-nav-marker'
     marker.dataset.key = row.key
     marker.setAttribute('aria-label', this.language === 'zh' ? '跳转到该提问' : 'Jump to this message')
-    marker.style.width = MARKER_SIZE + 'px'
-    marker.style.height = MARKER_SIZE + 'px'
+    // 盒子宽高由 CSS 控制：width 100% 撑满面板、height 使用 --nio-box-h。
     marker.addEventListener('click', () => {
       const target = scrollTarget(row.top, SCROLL_PADDING)
-      scrollport.scrollTo({ top: target, behavior: 'smooth' })
+      // 自定义快速滚动动画（原生 smooth 太慢）。
+      animateScrollTo(scrollport, target)
     })
     return marker
   }

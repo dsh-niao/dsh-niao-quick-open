@@ -20,7 +20,7 @@ Recreates the DeepSeek web interaction: once the current session has **≥ 2 use
 
 - **Hover a marker** — a summary card appears ("Question #N" title + truncated message text);
 - **Click a marker** — the transcript smooth-scrolls to that message;
-- The marker for the message currently in the viewport is highlighted in the brand color, so you always know where you are;
+- The marker for the message you are currently reading is highlighted in the brand color — when you scroll between two questions, the previous one stays highlighted until the next question appears;
 - A badge at the bottom of the pill shows the total number of user messages;
 - The pill is **always visible** (no hover reveal/hide); scrolling / streaming only repositions markers and highlights without flicker.
 
