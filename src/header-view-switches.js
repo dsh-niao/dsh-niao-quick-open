@@ -220,7 +220,8 @@ export function ensureHeaderViewSwitches() {
       showTimer = window.setTimeout(() => {
         showTimer = null
         const rect = btn.getBoundingClientRect()
-        tip.style.left = (rect.left + rect.width / 2) + 'px'
+        // bottom-left：气泡左缘对齐按钮左缘，显示在按钮下方。
+        tip.style.left = rect.left + 'px'
         tip.style.top = (rect.bottom + 8) + 'px'
         tip.style.opacity = '1'
       }, 500)
@@ -229,7 +230,7 @@ export function ensureHeaderViewSwitches() {
     btn.addEventListener('focus', () => {
       if (showTimer) window.clearTimeout(showTimer)
       const rect = btn.getBoundingClientRect()
-      tip.style.left = (rect.left + rect.width / 2) + 'px'
+      tip.style.left = rect.left + 'px'
       tip.style.top = (rect.bottom + 8) + 'px'
       tip.style.opacity = '1'
     })

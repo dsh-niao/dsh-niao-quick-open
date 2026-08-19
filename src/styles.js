@@ -65,8 +65,9 @@ export const CSS = `
 .nio-hvswitch:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .nio-hvswitch svg{display:block;width:16px;height:16px}
 /* 提示气泡：fixed 定位（按钮所在 sectionHeader 有 overflow:hidden，
-   absolute 会被裁剪），位置由 JS 在 hover 时按按钮 rect 计算 */
-.nio-hvswitch-tip{position:fixed;left:0;top:0;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+   absolute 会被裁剪），位置由 JS 在 hover 时按按钮 rect 计算。
+   left 直接对齐按钮左缘（bottom-left），无水平偏移。 */
+.nio-hvswitch-tip{position:fixed;left:0;top:0;white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 /* 单列表（flat）会话行：三行结构。
    全部规则以 [class*="flatList"][data-nio-flat-style] 为前缀：容器仅在
    「单列表增强样式」开关开启时带 data-nio-flat-style 标记，关闭后所有
