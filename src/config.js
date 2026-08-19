@@ -44,7 +44,7 @@ export function configDirty() {
 
 /** 应用一份配置补丁：更新缓存，并在任一「显示开关」变化时立即重建对应 UI。 */
 export function applyConfigPatch(next) {
-  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string' || typeof next.showRestart === 'boolean' || typeof next.menuQuickActions === 'boolean' || typeof next.sessionDoneMark === 'boolean' || typeof next.flatListStyle === 'boolean' || typeof next.headerViewSwitches === 'boolean')
+  const changed = next && (typeof next.enabled === 'boolean' || typeof next.editor === 'string' || typeof next.showRestart === 'boolean' || typeof next.menuQuickActions === 'boolean' || typeof next.sessionDoneMark === 'boolean' || typeof next.flatListStyle === 'boolean' || typeof next.headerViewSwitches === 'boolean' || typeof next.messageDelete === 'boolean')
   if (next && typeof next.enabled === 'boolean') pluginConfig.enabled = next.enabled
   if (next && typeof next.editor === 'string') pluginConfig.editor = next.editor
   if (next && typeof next.showRestart === 'boolean') pluginConfig.showRestart = next.showRestart
@@ -52,6 +52,7 @@ export function applyConfigPatch(next) {
   if (next && typeof next.sessionDoneMark === 'boolean') pluginConfig.sessionDoneMark = next.sessionDoneMark
   if (next && typeof next.flatListStyle === 'boolean') pluginConfig.flatListStyle = next.flatListStyle
   if (next && typeof next.headerViewSwitches === 'boolean') pluginConfig.headerViewSwitches = next.headerViewSwitches
+  if (next && typeof next.messageDelete === 'boolean') pluginConfig.messageDelete = next.messageDelete
   if (changed) {
     for (const fn of uiAppliers) {
       try { fn() } catch { /* 单个模块重建失败不影响其他模块 */ }

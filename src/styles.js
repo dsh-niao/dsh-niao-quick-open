@@ -164,6 +164,15 @@ export const CSS = `
 .nio-settings-select:disabled{opacity:.5;cursor:default}
 .nio-settings-note{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px;padding:16px 0}
 .nio-settings-error{color:var(--dsw-alias-state-error-primary);font-size:13px;line-height:20px;padding:16px 0}
+/* 对话消息删除按钮：注入到消息下方原生操作按钮行（复制按钮所在行）内，
+   与原生图标按钮同尺寸；hover 变红（危险色） */
+.nio-del{position:relative;flex:none;width:28px;height:28px;color:var(--dsw-alias-label-tertiary);background:transparent;border:none;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s ease,background .15s ease}
+.nio-del svg{display:block;width:15px;height:15px}
+.nio-del:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-state-error-primary)}
+.nio-del-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--dsw-alias-tooltip-bg);color:#f2f2f2;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:11px;line-height:15px;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2147483001;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-del:hover .nio-del-tip{opacity:1}
+/* 删除确认框内的错误提示 */
+.nio-del-err{color:var(--dsw-alias-state-error-primary) !important;font-weight:500}
 /* 左下角重启按钮：absolute 定位在设置行右侧（定位上下文 = settingsArea） */
 [class*="settingsArea"].nio-rst-area{position:relative}
 /* 默认：灰色半透明；hover：变为红色（硬性重启警示色） */
