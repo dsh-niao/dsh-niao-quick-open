@@ -1,6 +1,6 @@
 {
   "name": "dsh-niao-quick-open",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Workspace quick actions in the row menu (⋯): open in file manager / default editor, pick a default editor (auto-discovered). · DeepSeek Harness 工作区行菜单（⋯）快捷操作：文件管理器打开、常用编辑器打开、自动发现并设置常用编辑器。",
   "keywords": [
     "deepseek",
