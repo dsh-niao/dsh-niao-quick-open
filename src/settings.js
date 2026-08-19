@@ -177,7 +177,7 @@ export function ConfigPanel() {
       React.createElement('div', { className: 'nio-settings-row' },
         React.createElement('div', { className: 'nio-settings-text' },
           React.createElement('div', { className: 'nio-settings-title' }, '工作区栏头部增强'),
-          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，工作区/会话列表头部（搜索、分组方式、排序方式、新增项目所在行）替换「分组方式+排序方式」悬浮弹窗图标为两个切换图标：分组方式（按工作区 ⇄ 单列表）、排序方式（最新更新 ⇄ 手动排序），点击直接切换；关闭则使用系统原生悬浮弹窗'),
+          React.createElement('div', { className: 'nio-settings-desc' }, '开启后，工作区/会话列表头部（搜索、分组方式、排序方式、新增项目所在行）保持原有图标不变，额外添加一个「切换分组方式」快捷图标（按工作区 ⇄ 单列表），点击直接切换并带悬浮提示；关闭则恢复原样'),
         ),
         React.createElement('label', { className: 'nio-settings-toggle' },
           React.createElement('input', {

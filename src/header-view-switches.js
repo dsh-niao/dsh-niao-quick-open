@@ -3,18 +3,17 @@
  *
  * 「工作区栏头部增强」开关（headerViewSwitches）开启后，对工作区/会话
  * 列表头部（搜索、分组方式、排序方式、新增项目所在行）做图标调整：
- *  - 隐藏原生「分组方式+排序方式」悬浮弹窗图标（ViewOptionsMenu 按钮）；
- *  - 新增两个切换图标：
- *      分组方式：默认「按工作区」，点击切换为「单列表」（再点切回）；
- *      排序方式：默认「最新更新」，点击切换为「手动排序」（再点切回）；
+ *  - 保持原有图标不变（原生「视图选项」悬浮弹窗图标、新增项目图标等
+ *    全部保留）；
+ *  - 额外新增一个「切换分组方式」快捷图标：
+ *      默认「按工作区」，点击切换为「单列表」（再点切回）；
  *  - hover 悬浮提示与其他图标一致，文案「当前为xxx，点击后切换为xxx」。
  *
  * 状态切换复用原生路径：ViewOptionsMenu 的菜单项 onSelect 调 store 的
- * setGroupBy / setOrderBy（React 状态持久化到 localStorage
- * dsh.workspace.view.v5）。本模块打开菜单 → 在菜单绘制前隐藏
- * （nio-hide-menu，microtask 窗口）→ 点击目标菜单项 → 菜单在隐藏状态
- * 卸载、视图即时切换，无菜单闪现。当前模式从 localStorage view store
- * 读取（fallback DOM 推断）。
+ * setGroupBy（React 状态持久化到 localStorage dsh.workspace.view.v5）。
+ * 本模块打开菜单 → 在菜单绘制前隐藏（nio-hide-menu，microtask 窗口）
+ * → 点击目标菜单项 → 菜单在隐藏状态卸载、视图即时切换，无菜单闪现。
+ * 当前模式从 localStorage view store 读取（fallback DOM 推断）。
  *
  * @module dsh-niao-quick-open/client/header-view-switches
  */
@@ -163,15 +162,14 @@ function pickMenuOption(targetKind, targetText) {
 }
 
 /**
- * 维护头部视图切换图标：开关开启时隐藏原生悬浮弹窗按钮、注入两个切换
- * 图标（分组方式 / 排序方式）；关闭时恢复原生并移除注入。幂等。
+ * 维护头部视图切换图标：开关开启时保持原有图标不变，额外注入一个
+ * 「切换分组方式」快捷图标；关闭时移除注入。幂等。
  */
 export function ensureHeaderViewSwitches() {
   const actions = findHeaderActions()
   const vob = findViewOptionsButton()
   if (!pluginConfig.headerViewSwitches) {
-    // 恢复原生悬浮弹窗按钮，移除注入图标与容器放宽。
-    if (vob) vob.style.display = ''
+    // 移除注入图标与容器放宽（原生按钮从不被隐藏，无需恢复）。
     const actions = findHeaderActions()
     if (actions) actions.classList.remove('nio-hv-actions')
     const injected = document.querySelectorAll('[data-nio-hvswitch]')
@@ -179,57 +177,43 @@ export function ensureHeaderViewSwitches() {
     return
   }
   if (!actions || !vob) return
-  // 隐藏原生「分组方式+排序方式」悬浮弹窗按钮。
-  // 用 inline style（React 不管理此按钮的 style prop → 重渲染不会重置），
-  // 比 classList 稳定：class 会被 React 重渲染时重置（原来图标闪消失的原因）。
-  vob.style.display = 'none'
   // 放宽容器宽度：原生 headerActions max-width:60px + overflow:hidden
-  // 只能容纳 2 个按钮（视图选项+新增项目）；注入 2 个新按钮后总宽超出
-  // 会被 overflow 裁剪（原图标消失、新图标看不见的根因）。
+  // 只能容纳 2 个按钮（视图选项+新增项目）；额外注入 1 个新按钮后总宽
+  // 超出，会被 overflow 裁剪（新图标看不见）。放宽避免裁剪。
   actions.classList.add('nio-hv-actions')
-  // 注入两个切换图标（幂等：已存在则仅刷新提示文案）。
-  if (!actions.querySelector('[data-nio-hvswitch]')) {
+  // 注入「切换分组方式」快捷图标（幂等：已存在则仅刷新提示文案）。
+  if (!actions.querySelector('[data-nio-hvswitch="groupBy"]')) {
     const zh = isZh()
     const st = viewState()
     // 初始提示文案（当前为xxx，点击后切换为xxx）。
     const tipTextFor = (kind, mode) => zh
-      ? `当前为${modeLabel(kind, mode)}，点击后切换为${modeLabel(kind, mode === (kind === 'groupBy' ? 'flat' : 'manual') ? (kind === 'groupBy' ? 'workspace' : 'updated') : (kind === 'groupBy' ? 'flat' : 'manual'))}`
-      : `Now ${modeLabel(kind, mode)}, click to switch to ${modeLabel(kind, mode === (kind === 'groupBy' ? 'flat' : 'manual') ? (kind === 'groupBy' ? 'workspace' : 'updated') : (kind === 'groupBy' ? 'flat' : 'manual'))}`
-    const mkBtn = (key, iconSvg, aria) => {
-      const kind = key === 'groupBy' ? 'groupBy' : 'orderBy'
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'nio-hvswitch'
-      btn.setAttribute('data-nio-hvswitch', key)
-      btn.setAttribute('aria-label', aria)
-      const tip = document.createElement('span')
-      tip.className = 'nio-hvswitch-tip'
-      // 立即写入初始提示文本（不依赖后续 scan 的 setText，杜绝空提示）。
-      tip.textContent = tipTextFor(kind, st[kind])
-      // title 属性兜底：浏览器原生提示一定显示（即使 span 样式被干扰）。
-      btn.title = tip.textContent
-      btn.appendChild(iconSvg.cloneNode(true))
-      btn.appendChild(tip)
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        const cur = viewState()
-        pickMenuOption(kind, targetItemText(kind, cur[kind]))
-      })
-      return btn
-    }
-    const groupBtn = mkBtn('groupBy', groupBySvg, zh ? '切换分组方式' : 'Toggle grouping')
-    const orderBtn = mkBtn('orderBy', orderBySvg, zh ? '切换排序方式' : 'Toggle sorting')
+      ? `当前为${modeLabel(kind, mode)}，点击后切换为${modeLabel(kind, mode === 'flat' ? 'workspace' : 'flat')}`
+      : `Now ${modeLabel(kind, mode)}, click to switch to ${modeLabel(kind, mode === 'flat' ? 'workspace' : 'flat')}`
+    const kind = 'groupBy'
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'nio-hvswitch'
+    btn.setAttribute('data-nio-hvswitch', kind)
+    btn.setAttribute('aria-label', zh ? '切换分组方式' : 'Toggle grouping')
+    const tip = document.createElement('span')
+    tip.className = 'nio-hvswitch-tip'
+    // 立即写入初始提示文本（不依赖后续 scan 的 setText，杜绝空提示）。
+    tip.textContent = tipTextFor(kind, st[kind])
+    // title 属性兜底：浏览器原生提示一定显示（即使 span 样式被干扰）。
+    btn.title = tip.textContent
+    btn.appendChild(groupBySvg.cloneNode(true))
+    btn.appendChild(tip)
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const cur = viewState()
+      pickMenuOption(kind, targetItemText(kind, cur[kind]))
+    })
     // 插入位置：vob（视图选项按钮）在 Menu root span 内，span 才是
     // headerActions 的直接子元素。insertBefore 的 reference node 必须是
     // 父元素的直接子元素，直接传 vob 会抛 NotFoundError（按钮从未插入）。
     const refNode = vob.parentElement || vob
-    if (actions.contains(refNode)) {
-      actions.insertBefore(orderBtn, refNode)
-      actions.insertBefore(groupBtn, refNode)
-    } else {
-      actions.appendChild(orderBtn)
-      actions.appendChild(groupBtn)
-    }
+    if (actions.contains(refNode)) actions.insertBefore(btn, refNode)
+    else actions.appendChild(btn)
   }
   // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
   // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
@@ -237,19 +221,12 @@ export function ensureHeaderViewSwitches() {
   const st = viewState()
   const zh = isZh()
   const groupTip = actions.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
-  const orderTip = actions.querySelector('[data-nio-hvswitch="orderBy"] .nio-hvswitch-tip')
   const groupBtn = actions.querySelector('[data-nio-hvswitch="groupBy"]')
-  const orderBtn = actions.querySelector('[data-nio-hvswitch="orderBy"]')
   const groupText = zh
     ? `当前为${modeLabel('groupBy', st.groupBy)}，点击后切换为${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
     : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
-  const orderText = zh
-    ? `当前为${modeLabel('orderBy', st.orderBy)}，点击后切换为${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
-    : `Now ${modeLabel('orderBy', st.orderBy)}, click to switch to ${modeLabel('orderBy', st.orderBy === 'manual' ? 'updated' : 'manual')}`
   setText(groupTip, groupText)
-  setText(orderTip, orderText)
   if (groupBtn && groupBtn.title !== groupText) groupBtn.title = groupText
-  if (orderBtn && orderBtn.title !== orderText) orderBtn.title = orderText
 }
 
 /** 配置「工作区栏头部增强」开关变化时重建头部图标。 */
@@ -279,30 +256,5 @@ const groupBySvg = (() => {
   p('M2.5 8h8')    // 第二行横线
   p('M2.5 13h5')   // 第三行横线
   p('M6.5 3v10')   // 左侧竖线（树）
-  return svg
-})()
-
-/** 排序方式图标：上下箭头，表示排序。 */
-const orderBySvg = (() => {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  svg.setAttribute('width', '16')
-  svg.setAttribute('height', '16')
-  svg.setAttribute('viewBox', '0 0 16 16')
-  svg.setAttribute('fill', 'none')
-  svg.setAttribute('stroke', 'currentColor')
-  svg.setAttribute('stroke-width', '1.5')
-  svg.setAttribute('stroke-linecap', 'round')
-  svg.setAttribute('stroke-linejoin', 'round')
-  const p = (d) => {
-    const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    el.setAttribute('d', d)
-    svg.appendChild(el)
-  }
-  p('M5 2v12')     // 中心竖线
-  p('M5 2L2.5 5')  // 上箭头
-  p('M5 2l2.5 3')
-  p('M11 14V2')    // 右竖线
-  p('M11 14l-2.5-3')
-  p('M11 14l2.5-3')
   return svg
 })()
