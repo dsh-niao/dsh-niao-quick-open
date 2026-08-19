@@ -2,17 +2,19 @@
  * dsh-niao-quick-open — 浏览器端：会话右侧「用户消息导航条」（Rail 实现）。
  *
  * 复刻 DeepSeek 网页版交互：当本会话用户消息 ≥ 2 条且内容超过一屏时，
- * 在对话区域右侧（紧贴滚动条左侧）悬浮一条竖直胶囊面板，每条用户消息
- * 对应一个按内容比例定位的标记竖条：
+ * 在对话区域右侧（紧贴滚动条左侧）**常驻**悬浮一条竖直胶囊面板，每条
+ * 用户消息对应一个标记圆点（flex 自然罗列，面板高度由节点撑开）：
  *  - 悬停标记：弹出摘要卡片（「第 N 条提问」标题 + 消息正文截断摘要）；
  *  - 点击标记：对话区平滑滚动到该消息附近；
+ *  - 当前视口内的消息标记高亮为品牌色（定位当前阅读位置）；
  *  - 面板底部显示用户消息总数徽标；
- *  - 面板平时淡出隐藏，指针移到面板附近热区时淡入，移开约 0.45s 后淡出；
- *    滚动 / 流式输出时只重定位标记，不主动显示面板。
+ *  - 面板常驻显示（不随鼠标靠近/离开显隐），滚动 / 流式输出时只重定位
+ *    标记与高亮，不闪烁。
  *
  * 数据来源：读取 DSH 已渲染的会话行 [data-chat-anchor-key]，按
- * data-chat-flow-kind="user" 过滤（与 delete-message.js 同一套稳定 data
- * 属性，不依赖 hash 类名）；纯浏览器端，零宿主端改动。
+ * data-chat-flow-kind 为 'user'（正常提问）或 'steering'（插话，同为
+ * 用户输入）过滤（与 delete-message.js 同一套稳定 data 属性，不依赖
+ * hash 类名）；纯浏览器端，零宿主端改动。
  *
  * @module dsh-niao-quick-open/client/nav-rail
  */
@@ -21,23 +23,15 @@
 export const SCROLLPORT_SELECTOR = '[data-conversation-scroll]'
 /** 会话行选择器（每条对话记录行的稳定锚点）。 */
 const ROW_SELECTOR = '[data-chat-anchor-key]'
-/** 只标记用户消息。 */
-const MARK_KIND = 'user'
+/** 只标记用户消息：'user'（正常提问）或 'steering'（插话，同样算用户输入）。 */
+const MARK_KINDS = new Set(['user', 'steering'])
 /** 面板出现所需的最少用户消息数（复刻 DeepSeek 网页版：≥2 条才显示）。 */
 const MIN_USER_MESSAGES = 2
 
-/* 面板外观与交互参数（默认值，保持与 DeepSeek 网页版观感一致） */
-const PANEL_WIDTH = 26
-const PANEL_HEIGHT_RATIO = 0.5
-const MIN_PANEL_HEIGHT = 140
-const MAX_PANEL_HEIGHT = 520
-const MARKER_SIZE = 6
+/* 面板外观与交互参数 */
+const PANEL_WIDTH = 24
+const MARKER_SIZE = 7
 const RIGHT_MARGIN = 10
-const HOVER_ZONE_X = 28
-const HOVER_ZONE_Y = 24
-const IDLE_HIDE_MS = 450
-const FADE_IN_MS = 200
-const FADE_OUT_MS = 400
 const SUMMARY_MAX_CHARS = 200
 const SCROLL_PADDING = 12
 
@@ -55,25 +49,6 @@ function scrollbarWidthOf(scrollport) {
 /** 滚动容器内容是否超过一屏（值得标记）。 */
 function hasOverflow(scrollHeight, clientHeight) {
   return scrollHeight > clientHeight + 1
-}
-
-/** 行顶在内容中的纵向比例，夹取到 [0, 1]。 */
-function contentRatio(contentTop, scrollHeight) {
-  if (scrollHeight <= 0) return 0
-  return Math.min(1, Math.max(0, contentTop / scrollHeight))
-}
-
-/** 标记在面板内的 top 偏移（按内容比例压缩进面板高度）。 */
-function markerTop(ratio, railHeight, markerSize) {
-  if (railHeight <= 0) return 0
-  const max = Math.max(0, railHeight - markerSize)
-  return Math.min(max, Math.max(0, ratio * railHeight))
-}
-
-/** 面板高度：视口高度的一个比例，夹取到 [min, max]。 */
-function panelHeightFor(viewportHeight, ratio, min, max) {
-  if (viewportHeight <= 0) return 0
-  return Math.min(max, Math.max(min, viewportHeight * ratio))
 }
 
 /** 跳转目标：把行顶滚到视口上方预留 padding 处。 */
@@ -122,7 +97,7 @@ function extractSummary(row, maxChars) {
 /* Rail：一个滚动容器对应一条导航条面板                                    */
 /* ------------------------------------------------------------------ */
 
-/** 行目标：{ element, key }（key 为行稳定锚点，用于重建后的 hover 匹配）。 */
+/** 行目标：{ element, key, top }（top 为行顶在内容坐标系的位置，供定位与高亮）。 */
 export class Rail {
   /**
    * @param {HTMLElement} scrollport 对话滚动容器（[data-conversation-scroll]）。
@@ -133,17 +108,11 @@ export class Rail {
     this.frame = 0
     this.rows = []
     this.hoveredKey = null
-    this.panelShown = false
-    this.idleTimer = undefined
-    this.pointerX = -1
-    this.pointerY = -1
 
-    // 面板：body 下 fixed（不被滚动容器裁剪），初始隐藏。
+    // 面板：body 下 fixed（不被滚动容器裁剪），常驻显示。
     this.overlay = document.createElement('div')
     this.overlay.className = 'nio-nav'
     this.overlay.style.width = PANEL_WIDTH + 'px'
-    this.overlay.style.opacity = '0'
-    this.overlay.style.visibility = 'hidden'
     document.body.appendChild(this.overlay)
 
     // 摘要提示卡：body 下 fixed，pointer-events none 不挡交互。
@@ -161,12 +130,6 @@ export class Rail {
     this.onResize = () => this.schedule()
     this.onFrame = () => this.refresh()
     this.onMouseOver = (event) => this.handlePointerEnter(event.target)
-    this.onMouseMove = (event) => {
-      this.pointerX = event.clientX
-      this.pointerY = event.clientY
-      if (this.pointerInZone()) this.showPanel()
-      else this.schedulePanelHide()
-    }
     this.onMouseDown = (event) => {
       if (!this.isMarker(event.target)) this.hideSummary()
     }
@@ -178,7 +141,6 @@ export class Rail {
     // Document 级指针跟踪：标记在每次刷新时重建（滚动/流式），重建后的
     // 标记不会触发 mouseleave，改为在每次 mouseover 时重新判定悬停。
     document.addEventListener('mouseover', this.onMouseOver)
-    document.addEventListener('mousemove', this.onMouseMove)
     document.addEventListener('mousedown', this.onMouseDown)
     document.addEventListener('focusin', this.onFocusIn)
     document.addEventListener('focusout', this.onFocusOut)
@@ -187,46 +149,6 @@ export class Rail {
     this.mutation = new MutationObserver(this.onScroll)
     this.mutation.observe(this.scrollport, { childList: true, subtree: true })
     this.schedule()
-  }
-
-  /** 指针是否位于面板周围热区（面板隐藏时 rect 依然存在，可判定）。 */
-  pointerInZone() {
-    const rect = this.overlay.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return false
-    return this.pointerX >= rect.left - HOVER_ZONE_X && this.pointerX <= rect.right + HOVER_ZONE_X
-      && this.pointerY >= rect.top - HOVER_ZONE_Y && this.pointerY <= rect.bottom + HOVER_ZONE_Y
-  }
-
-  /** 立即显示面板（取消待执行的淡出）。 */
-  showPanel() {
-    if (this.idleTimer !== undefined) {
-      clearTimeout(this.idleTimer)
-      this.idleTimer = undefined
-    }
-    if (this.panelShown) return
-    this.panelShown = true
-    this.overlay.style.transitionDuration = FADE_IN_MS + 'ms'
-    this.overlay.style.visibility = 'visible'
-    this.overlay.style.opacity = '1'
-  }
-
-  /** 启动（或重置）淡出倒计时：指针离开热区一段时间后隐藏面板。 */
-  schedulePanelHide() {
-    if (this.idleTimer !== undefined) clearTimeout(this.idleTimer)
-    this.idleTimer = setTimeout(() => {
-      this.idleTimer = undefined
-      if (!this.pointerInZone()) this.hidePanel()
-    }, IDLE_HIDE_MS)
-  }
-
-  /** 淡出面板并停止接收事件。 */
-  hidePanel() {
-    if (!this.panelShown) return
-    this.panelShown = false
-    this.hideSummary()
-    this.overlay.style.transitionDuration = FADE_OUT_MS + 'ms'
-    this.overlay.style.visibility = 'hidden'
-    this.overlay.style.opacity = '0'
   }
 
   /** 事件目标是否为本面板的标记。 */
@@ -251,14 +173,18 @@ export class Rail {
     }
   }
 
-  /** 读取当前渲染的用户消息行集合（隐藏行跳过）。 */
+  /** 读取当前渲染的用户消息行集合（隐藏行跳过），并计算行顶内容坐标。 */
   readRows() {
     const rows = []
-    for (const element of Array.from(this.scrollport.querySelectorAll(ROW_SELECTOR))) {
+    const scrollport = this.scrollport
+    const spRect = scrollport.getBoundingClientRect()
+    for (const element of Array.from(scrollport.querySelectorAll(ROW_SELECTOR))) {
       if (element.getClientRects().length === 0) continue
       const kind = element.dataset.chatFlowKind || 'unknown'
-      if (kind !== MARK_KIND) continue
-      rows.push({ element, key: element.dataset.chatAnchorKey || '' })
+      if (!MARK_KINDS.has(kind)) continue
+      // 行顶在内容坐标系中的位置（不受视口滚动影响）。
+      const top = element.getBoundingClientRect().top - spRect.top + scrollport.scrollTop
+      rows.push({ element, key: element.dataset.chatAnchorKey || '', top })
     }
     return rows
   }
@@ -269,7 +195,7 @@ export class Rail {
     this.frame = requestAnimationFrame(this.onFrame)
   }
 
-  /** 重读行集合并重定位面板/标记。 */
+  /** 重读行集合并重定位面板/标记/高亮。 */
   refresh() {
     this.frame = 0
     this.rows = this.readRows()
@@ -281,53 +207,53 @@ export class Rail {
     const scrollport = this.scrollport
     const rect = scrollport.getBoundingClientRect()
     const scrollbarWidth = scrollbarWidthOf(scrollport)
-    const panelHeight = panelHeightFor(rect.height, PANEL_HEIGHT_RATIO, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT)
     const visible = this.rows.length >= MIN_USER_MESSAGES
       && hasOverflow(scrollport.scrollHeight, scrollport.clientHeight)
 
     if (!visible) {
-      this.panelShown = false
-      if (this.idleTimer !== undefined) {
-        clearTimeout(this.idleTimer)
-        this.idleTimer = undefined
-      }
       this.overlay.style.display = 'none'
       this.hideSummary()
       return
     }
-    this.overlay.style.display = 'block'
-    this.overlay.style.height = panelHeight + 'px'
-    // 面板固定在滚动容器右侧、滚动条左侧，垂直居中。
+    this.overlay.style.display = 'flex'
     this.overlay.style.left = (rect.right - scrollbarWidth - RIGHT_MARGIN - PANEL_WIDTH) + 'px'
-    this.overlay.style.top = (rect.top + (rect.height - panelHeight) / 2) + 'px'
-    this.overlay.replaceChildren(...this.buildMarkers(panelHeight))
+    this.overlay.replaceChildren(...this.buildMarkers())
+    // 高度由内部节点撑开：先渲染再测量，实现垂直居中。
+    const panelHeight = this.overlay.offsetHeight
+    this.overlay.style.top = (rect.top + Math.max(0, (rect.height - panelHeight) / 2)) + 'px'
   }
 
-  /** 构建全部标记 + 底部总数徽标。 */
-  buildMarkers(panelHeight) {
-    const nodes = this.rows.map((row, index) => this.buildMarker(row, index, panelHeight))
+  /** 构建全部标记（自然罗列 + 当前视口高亮）+ 底部总数徽标。 */
+  buildMarkers() {
+    const scrollport = this.scrollport
+    const viewTop = scrollport.scrollTop
+    const viewBottom = viewTop + scrollport.clientHeight
+    const total = this.rows.length
+    const nodes = this.rows.map((row) => {
+      const marker = this.buildMarker(row)
+      // 当前视口内可见的用户消息 → 标记高亮（品牌色），定位阅读位置。
+      if (row.top >= viewTop - 4 && row.top <= viewBottom + 4) marker.classList.add('nio-nav-marker-active')
+      return marker
+    })
     const count = document.createElement('span')
     count.className = 'nio-nav-count'
-    count.textContent = String(this.rows.length)
+    count.textContent = String(total)
     nodes.push(count)
     return nodes
   }
 
-  /** 构建单个标记：按内容比例定位，点击平滑跳转到该消息。 */
-  buildMarker(row, index, panelHeight) {
+  /** 构建单个标记：flex 流内自然罗列（间距由 CSS gap 控制），点击平滑跳转。 */
+  buildMarker(row) {
     const scrollport = this.scrollport
-    // 行顶在内容坐标系中的位置（不受视口滚动影响）。
-    const rowTop = row.element.getBoundingClientRect().top - scrollport.getBoundingClientRect().top + scrollport.scrollTop
-    const ratio = contentRatio(rowTop, scrollport.scrollHeight)
     const marker = document.createElement('button')
     marker.type = 'button'
     marker.className = 'nio-nav-marker'
     marker.dataset.key = row.key
-    marker.setAttribute('aria-label', this.language === 'zh' ? ('第 ' + (index + 1) + ' 条提问') : ('Message ' + (index + 1)))
-    marker.style.top = markerTop(ratio, panelHeight, MARKER_SIZE) + 'px'
+    marker.setAttribute('aria-label', this.language === 'zh' ? '跳转到该提问' : 'Jump to this message')
+    marker.style.width = MARKER_SIZE + 'px'
     marker.style.height = MARKER_SIZE + 'px'
     marker.addEventListener('click', () => {
-      const target = scrollTarget(rowTop, SCROLL_PADDING)
+      const target = scrollTarget(row.top, SCROLL_PADDING)
       scrollport.scrollTo({ top: target, behavior: 'smooth' })
     })
     return marker
@@ -376,12 +302,9 @@ export class Rail {
   dispose() {
     if (this.frame !== 0) cancelAnimationFrame(this.frame)
     this.frame = 0
-    if (this.idleTimer !== undefined) clearTimeout(this.idleTimer)
-    this.idleTimer = undefined
     this.scrollport.removeEventListener('scroll', this.onScroll)
     window.removeEventListener('resize', this.onResize)
     document.removeEventListener('mouseover', this.onMouseOver)
-    document.removeEventListener('mousemove', this.onMouseMove)
     document.removeEventListener('mousedown', this.onMouseDown)
     document.removeEventListener('focusin', this.onFocusIn)
     document.removeEventListener('focusout', this.onFocusOut)

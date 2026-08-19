@@ -201,13 +201,17 @@ export const CSS = `
 @keyframes nio-reboot-spin{to{transform:rotate(360deg)}}
 .nio-reboot-text{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
 /* 会话右侧「用户消息导航条」：复刻 DeepSeek 网页版悬浮显示条（fixed 在 body 下，随主题变量切换）。
-   面板默认淡出隐藏（opacity 0 + visibility hidden），指针进入热区时淡入，移开约 0.45s 后淡出；
-   标记按消息在内容中的比例定位，悬停出摘要卡、点击跳转；底部显示用户消息总数徽标。 */
-.nio-nav{position:fixed;z-index:2147483000;box-sizing:border-box;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 82%,transparent);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 2px 12px rgba(0,0,0,.22);opacity:0;visibility:hidden;transition:opacity 200ms ease,visibility 200ms}
-.nio-nav-marker{position:absolute;left:7px;right:7px;border:0;border-radius:999px;padding:0;margin:0;cursor:pointer;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-label-primary,#888) 55%,transparent);opacity:.72;transition:opacity 120ms ease,transform 120ms ease}
-.nio-nav-marker:hover{opacity:1;transform:scaleY(1.45);background:var(--dsw-alias-label-primary,#888)}
-.nio-nav-count{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-size:9px;line-height:1;color:var(--dsw-alias-label-secondary,#aaa);pointer-events:none;user-select:none}
-.nio-nav-tip{position:fixed;z-index:2147483100;max-width:300px;max-height:220px;overflow:hidden;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#eee);background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 92%,transparent);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;user-select:none;opacity:0;transition:opacity 120ms ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-.nio-nav-tip-title{display:block;font-weight:600;margin-bottom:4px;color:var(--dsw-alias-label-secondary,#bbb)}
+   面板常驻显示（不随鼠标显隐）：毛玻璃 + 圆角胶囊 + 内高光，随亮/暗主题切换；
+   标记为圆点，面板高度由内部节点自然撑开（flex 罗列）；当前视口内的消息标记高亮为品牌色；
+   悬停出摘要卡、点击跳转；底部显示用户消息总数徽标。 */
+.nio-nav{position:fixed;z-index:2147483000;box-sizing:border-box;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:9px;padding:11px 0 9px;background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 66%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid color-mix(in srgb,var(--dsw-alias-border-l2,rgba(127,127,127,.35)) 75%,transparent);box-shadow:0 1px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.06);opacity:.5;transition:opacity 160ms ease}
+.nio-nav:hover{opacity:1}
+.nio-nav-marker{box-sizing:border-box;flex:none;border:0;border-radius:50%;padding:0;margin:0;cursor:pointer;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-label-primary,#888) 42%,transparent);opacity:.85;transition:opacity 120ms ease,transform 120ms ease,background 120ms ease}
+.nio-nav-marker:hover{opacity:1;transform:scale(1.55);background:var(--dsw-alias-label-primary,#888)}
+.nio-nav-marker-active{background:var(--dsw-alias-state-business-primary,#4d6bfe);opacity:1;transform:scale(1.3)}
+.nio-nav-marker-active:hover{transform:scale(1.55)}
+.nio-nav-count{margin-top:2px;text-align:center;font-size:9px;line-height:1;font-weight:600;color:var(--dsw-alias-label-tertiary,#999);pointer-events:none;user-select:none}
+.nio-nav-tip{position:fixed;z-index:2147483100;max-width:300px;max-height:220px;overflow:hidden;border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#eee);background:color-mix(in srgb,var(--dsw-alias-bg-overlay,#1c1c1e) 94%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;user-select:none;opacity:0;transition:opacity 120ms ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.nio-nav-tip-title{display:block;font-weight:600;margin-bottom:4px;color:var(--dsw-alias-state-business-primary,#bbb)}
 .nio-nav-tip-body{display:block;white-space:pre-wrap;word-break:break-word}
 `
