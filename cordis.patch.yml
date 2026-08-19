@@ -1,6 +1,9 @@
 # dsh-niao-quick-open bundle patch: mounts the plugin into a profile layer stack.
-# Runtime defaults live at the plugin's config boundary. Users override them in
-# their profile patch row with the same id.
+# 配置项由插件导出的 Config schema 定义（@deepseek-ai/schemastery）：
+# Cordis 加载时校验并填充默认值；用户可在 profile 的 cordis.patch.yml 中
+# 以相同 id 覆盖任意键（整个 config 会被替换，需列出全部需要的键）。
+# 设置面板「界面功能」中的修改持久化到 ~/.dsh/dsh-niao-quick-open.config.json
+# （运行期最高优先级，无需重启即可生效）。
 - insert:
     - id: dsh-niao-quick-open
       name: 'dsh-niao-quick-open'

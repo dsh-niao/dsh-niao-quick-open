@@ -53,5 +53,8 @@
       ],
       "platform": "web"
     }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
   }
 }
