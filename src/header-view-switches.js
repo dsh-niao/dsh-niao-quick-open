@@ -89,6 +89,12 @@ function findHeaderActions() {
   return vob ? vob.closest('[class*="headerActions"]') : document.querySelector('[class*="headerActions"]')
 }
 
+/** 找到「工作区/会话列表头部」整行容器（sectionHeader，含「会话」/「工作区」文字）。 */
+function findSectionHeader() {
+  const actions = findHeaderActions()
+  return actions ? actions.closest('[class*="sectionHeader"]') : document.querySelector('[class*="sectionHeader"]')
+}
+
 /** 在文档中找文本匹配的菜单项（menuitem）。 */
 function findMenuItemByText(text) {
   const menus = document.querySelectorAll('[role="menu"]')
@@ -163,26 +169,21 @@ function pickMenuOption(targetKind, targetText) {
 
 /**
  * 维护头部视图切换图标：开关开启时保持原有图标不变，额外注入一个
- * 「切换分组方式」快捷图标；关闭时移除注入。幂等。
+ * 「切换分组方式」快捷图标（放在整行最左侧、「会话」/「工作区」文字
+ * 的左侧）；关闭时移除注入。幂等。
  */
 export function ensureHeaderViewSwitches() {
-  const actions = findHeaderActions()
   const vob = findViewOptionsButton()
+  const section = findSectionHeader()
   if (!pluginConfig.headerViewSwitches) {
-    // 移除注入图标与容器放宽（原生按钮从不被隐藏，无需恢复）。
-    const actions = findHeaderActions()
-    if (actions) actions.classList.remove('nio-hv-actions')
+    // 移除注入图标（原生按钮从不被隐藏，无需恢复）。
     const injected = document.querySelectorAll('[data-nio-hvswitch]')
     for (const el of injected) el.remove()
     return
   }
-  if (!actions || !vob) return
-  // 放宽容器宽度：原生 headerActions max-width:60px + overflow:hidden
-  // 只能容纳 2 个按钮（视图选项+新增项目）；额外注入 1 个新按钮后总宽
-  // 超出，会被 overflow 裁剪（新图标看不见）。放宽避免裁剪。
-  actions.classList.add('nio-hv-actions')
+  if (!section || !vob) return
   // 注入「切换分组方式」快捷图标（幂等：已存在则仅刷新提示文案）。
-  if (!actions.querySelector('[data-nio-hvswitch="groupBy"]')) {
+  if (!section.querySelector('[data-nio-hvswitch="groupBy"]')) {
     const zh = isZh()
     const st = viewState()
     // 初始提示文案（当前为xxx，点击后切换为xxx）。
@@ -208,20 +209,20 @@ export function ensureHeaderViewSwitches() {
       const cur = viewState()
       pickMenuOption(kind, targetItemText(kind, cur[kind]))
     })
-    // 插入位置：vob（视图选项按钮）在 Menu root span 内，span 才是
-    // headerActions 的直接子元素。insertBefore 的 reference node 必须是
-    // 父元素的直接子元素，直接传 vob 会抛 NotFoundError（按钮从未插入）。
-    const refNode = vob.parentElement || vob
-    if (actions.contains(refNode)) actions.insertBefore(btn, refNode)
-    else actions.appendChild(btn)
+    // 插入到整行最左侧：「会话」/「工作区」文字（sectionLabel）之前；
+    // 无文字（rail 窄模式）则插到行首。
+    const label = section.querySelector('[class*="sectionLabel"]')
+    const refNode = label || section.firstChild
+    if (refNode) section.insertBefore(btn, refNode)
+    else section.appendChild(btn)
   }
   // 刷新提示文案（当前为xxx，点击后切换为xxx）。幂等写入：值相同不赋值，
   // 避免每次 scan 重写 textContent 触发 MutationObserver 自激循环。
   // 同时同步按钮 title（浏览器原生提示兜底）。
   const st = viewState()
   const zh = isZh()
-  const groupTip = actions.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
-  const groupBtn = actions.querySelector('[data-nio-hvswitch="groupBy"]')
+  const groupTip = section.querySelector('[data-nio-hvswitch="groupBy"] .nio-hvswitch-tip')
+  const groupBtn = section.querySelector('[data-nio-hvswitch="groupBy"]')
   const groupText = zh
     ? `当前为${modeLabel('groupBy', st.groupBy)}，点击后切换为${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`
     : `Now ${modeLabel('groupBy', st.groupBy)}, click to switch to ${modeLabel('groupBy', st.groupBy === 'flat' ? 'workspace' : 'flat')}`

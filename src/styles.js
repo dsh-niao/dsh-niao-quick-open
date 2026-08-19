@@ -60,12 +60,7 @@ export const CSS = `
 .nio-hide-card{display:none !important;visibility:hidden !important;pointer-events:none !important}
 /* 双击重命名：菜单在绘制前被隐藏（配合 MutationObserver 同步处理，杜绝闪现） */
 .nio-hide-menu{display:none !important}
-/* 工作区栏头部增强：隐藏原生「分组+排序」悬浮弹窗按钮 */
-.nio-hide-viewoptions{display:none !important}
-/* 工作区栏头部增强：放宽头部容器（原生 max-width:60px + overflow:hidden
-   只够 2 个按钮，注入 2 个新按钮后总宽超出会被裁剪） */
-.nio-hv-actions{max-width:none !important;overflow:visible !important}
-/* 工作区栏头部增强：分组/排序切换图标（与原生 headerActions 图标同风格） */
+/* 工作区栏头部增强：分组切换图标（与原生 headerActions 图标同风格） */
 .nio-hvswitch{position:relative;cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:transparent;border:none;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .nio-hvswitch:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .nio-hvswitch svg{display:block;width:16px;height:16px}
