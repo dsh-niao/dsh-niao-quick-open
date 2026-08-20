@@ -19,6 +19,10 @@ A productivity plugin built for the [DeepSeek Harness](https://github.com/deepse
 | 🔄 **Hard restart** | One-click DSH restart from the bottom-left corner, with confirmation, a waiting overlay, and auto page reload |
 | ⚙️ **Grouped settings panel** | Settings → UI Features: grouped by Sidebar / Session area / System tools, applied instantly |
 
+The image below marks every area of the DSH interface that this plugin enhances or modifies once enabled, for quick reference:
+
+<img src="docs/ui-enhancements.png" alt="UI enhancement locations overview" width="800">
+
 ## 🚀 Install
 
 ```sh
@@ -81,6 +85,8 @@ A **restart** icon sits to the right of the Settings button in the bottom-left c
 ## ⚙️ Settings: UI Features
 
 A **UI Features** page is registered in the DSH Settings panel, grouped by functional area; each option shows a one-line summary plus an expandable detailed description:
+
+<img src="docs/config-panel.png" alt="Settings panel: UI Features" width="800">
 
 ### Sidebar
 
